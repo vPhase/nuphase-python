@@ -7,7 +7,6 @@ NUM_TRIES = 10
 sys = nuphase.Nuphase()
 sys.boardInit()
 sys.calPulser(True) #turn on cal pulse feature
-check_if_aligned = False
 
 for i in range(NUM_TRIES):
     sys.boardInit()  #only deal with buffer 0
@@ -55,8 +54,6 @@ for i in range(NUM_TRIES):
             else:
                 sys.write(0, [56+j-4,0,shift_word_hi_byte, shift_word_low_byte])
         time.sleep(0.001)
-            
-    print i, location_of_peaks, shift_value
     
 sys.boardInit()
 sys.calPulser(False, readback=True)

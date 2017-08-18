@@ -120,7 +120,8 @@ class Nuphase():
         self.write(0,[126,0,0,1]) #reset event counter/timestamp on slave
         self.write(1,[126,0,0,1]) #reset event counter/timestamp 
         self.write(1,[39,0,0,0]) #release sync
-
+        self.setReadoutBuffer(0)
+        
         self.getDataManagerStatus()
 
     def dclkReset(self, sync=True):
@@ -211,23 +212,23 @@ class Nuphase():
                         
         return metadata
 
-    def readSysEvent(self, address_start=0, address_stop=64, save=True):
+    def readSysEvent(self, address_start=0, address_stop=64, save=True, filename='test.dat'):
         data_master = self.readBoardEvent(1, address_start=address_start, address_stop=address_stop)
-        data_slave = self.readBoardEvent(0, address_start=address_start, address_stop=address_stop)
-        with open('test.dat', 'w') as f:
+        data_slave = self.readBoardEvent(0, channel_stop=3, address_start=address_start, address_stop=address_stop)
+        with open(filename, 'w') as f:
             for i in range(len(data_master[0])):
-                for j in range(8):
+                for j in range(len(data_master)):
                     f.write(str(data_master[j][i]))
                     f.write('\t')
-                for j in range(8):
+                for j in range(len(data_slave)):
                     f.write(str(data_slave[j][i]))
                     f.write('\t')
                 f.write('\n')
-        return data_master, data_slave
+        return data_master+data_slave
                     
-    def readBoardEvent(self, dev, address_start=0, address_stop=64):
+    def readBoardEvent(self, dev, channel_start=0, channel_stop=7, address_start=0, address_stop=64):
         data=[]
-        for i in range(8):
+        for i in range(channel_start, channel_stop+1):
             data.append(self.readChan(dev, i, address_start, address_stop))
 
         return data 

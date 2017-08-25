@@ -5,7 +5,7 @@ from Adafruit_BBIO import SPI
 import Adafruit_BBIO.GPIO as GPIO
 import math
 import time
-import bf
+from bf import *
 
 class Nuphase():
     spi_bytes = 4  #transaction must include 4 bytes
@@ -101,11 +101,15 @@ class Nuphase():
             print 'board DNA:', dna[i]
             print '-----------------------------------'
 
-    def reset(self):
+    def reset(self, sync=True):
+        if sync:
+            self.write(1,[39,0,0,1])
         self.write(0, [127,0,0,1])
         self.write(1, [127,0,0,1])
+        if sync:
+            self.write(1,[39,0,0,0])
         
-    def boardInit(self):
+    def boardInit(self, verbose=False):
         self.write(1,[39,0,0,0]) #make sure sync disabled
         self.write(1,[82,0,0,0]) #turn off trigger enables
         self.write(1,[39,0,0,1]) #send sync
@@ -122,13 +126,13 @@ class Nuphase():
         self.write(1,[39,0,0,0]) #release sync
         self.setReadoutBuffer(0)
         
-        self.getDataManagerStatus()
+        self.getDataManagerStatus(verbose=verbose)
 
     def dclkReset(self, sync=True):
         if sync:
             self.write(1, [39,0,0,1]) #send sync
         self.write(0, [55,0,0,1]) #send dclk reset pulse to slave
-        self.write(1, [55,0,0,0]) #send dclk reset pulse to master
+        self.write(1, [55,0,0,1]) #send dclk reset pulse to master
         if sync:
             self.write(0, [39,0,0,0]) #release sync
             
@@ -178,8 +182,8 @@ class Nuphase():
 
     def getMetaData(self, verbose=True):
         metadata={}
-        metadata[0] = {}  #master
-        metadata[1] = {}  #slave
+        metadata['master'] = {}  #master
+        metadata['slave'] = {}  #slave
         evt_counter_master_lo = self.readRegister(1, 10)
         evt_counter_master_hi = self.readRegister(1, 11)
         evt_counter_slave_lo = self.readRegister(0, 10)
@@ -195,24 +199,24 @@ class Nuphase():
         deadtime_master = self.readRegister(1,16)
         deadtime_slave = self.readRegister(0,16)
         
-        metadata[0]['evt_count'] = evt_counter_master_hi[1] << 40 | evt_counter_master_hi[3] << 32 | evt_counter_master_hi[3] << 24 |\
+        metadata['master']['evt_count'] = evt_counter_master_hi[1] << 40 | evt_counter_master_hi[3] << 32 | evt_counter_master_hi[3] << 24 |\
                                    evt_counter_master_lo[1] << 16 | evt_counter_master_lo [2] << 8 | evt_counter_master_lo[3]
-        metadata[0]['trig_count'] = trig_counter_master_hi[1] << 40 | trig_counter_master_hi[3] << 32 | trig_counter_master_hi[3] << 24 |\
+        metadata['master']['trig_count'] = trig_counter_master_hi[1] << 40 | trig_counter_master_hi[3] << 32 | trig_counter_master_hi[3] << 24 |\
                                     trig_counter_master_lo[1] << 16 | trig_counter_master_lo [2] << 8 | trig_counter_master_lo[3]
-        metadata[0]['trig_time'] = trig_time_master_hi[1] << 40 | trig_time_master_hi[3] << 32 | trig_time_master_hi[3] << 24 |\
+        metadata['master']['trig_time'] = trig_time_master_hi[1] << 40 | trig_time_master_hi[3] << 32 | trig_time_master_hi[3] << 24 |\
                                    trig_time_master_lo[1] << 16 | trig_time_master_lo[2] << 8 | trig_time_master_lo[3]
-        metadata[0]['deadtime'] =  deadtime_master[1] << 16 | deadtime_master[2] << 8 | deadtime_master[3]
-        metadata[1]['evt_count'] = evt_counter_slave_hi[1] << 40 | evt_counter_slave_hi[3] << 32 | evt_counter_slave_hi[3] << 24 |\
+        metadata['master']['deadtime'] =  deadtime_master[1] << 16 | deadtime_master[2] << 8 | deadtime_master[3]
+        metadata['slave']['evt_count'] = evt_counter_slave_hi[1] << 40 | evt_counter_slave_hi[3] << 32 | evt_counter_slave_hi[3] << 24 |\
                                    evt_counter_slave_lo[1] << 16 | evt_counter_slave_lo [2] << 8 | evt_counter_slave_lo[3]
-        metadata[1]['trig_count'] = trig_counter_slave_hi[1] << 40 | trig_counter_slave_hi[3] << 32 | trig_counter_slave_hi[3] << 24 |\
+        metadata['slave']['trig_count'] = trig_counter_slave_hi[1] << 40 | trig_counter_slave_hi[3] << 32 | trig_counter_slave_hi[3] << 24 |\
                                     trig_counter_slave_lo[1] << 16 | trig_counter_slave_lo [2] << 8 | trig_counter_slave_lo[3]
-        metadata[1]['trig_time'] = trig_time_slave_hi[1] << 40 | trig_time_slave_hi[3] << 32 | trig_time_slave_hi[3] << 24 |\
+        metadata['slave']['trig_time'] = trig_time_slave_hi[1] << 40 | trig_time_slave_hi[3] << 32 | trig_time_slave_hi[3] << 24 |\
                                    trig_time_slave_lo[1] << 16 | trig_time_slave_lo[2] << 8 | trig_time_slave_lo[3]
-        metadata[1]['deadtime'] =  deadtime_slave[1] << 16 | deadtime_slave[2] << 8 | deadtime_slave[3]
+        metadata['slave']['deadtime'] =  deadtime_slave[1] << 16 | deadtime_slave[2] << 8 | deadtime_slave[3]
                         
         return metadata
 
-    def readSysEvent(self, address_start=0, address_stop=64, save=True, filename='test.dat'):
+    def readSysEvent(self, address_start=1, address_stop=64, save=True, filename='test.dat'):
         data_master = self.readBoardEvent(1, address_start=address_start, address_stop=address_stop)
         data_slave = self.readBoardEvent(0, channel_stop=3, address_start=address_start, address_stop=address_stop)
         with open(filename, 'w') as f:
@@ -245,9 +249,12 @@ class Nuphase():
 
         return data
             
-    def readRamAddress(self, dev, address):
+    def readRamAddress(self, dev, address, readback_address=False, verbose=False):
         data=[]
+        return_address=0
         self.write(dev, [69,0,0, 0x7F & address])
+        if readback_address:
+            return_address=self.readRegister(dev,69)
         self.write(dev,[35,0,0,0])
         data.extend(self.read(dev))
         self.write(dev,[36,0,0,0])
@@ -257,9 +264,109 @@ class Nuphase():
         self.write(dev,[38,0,0,0])
         data.extend(self.read(dev))
 
+        if verbose:
+            print dev,return_address,data
+
         return data
 
+    def getCurrentAttenValues(self):
+        current_atten_values = []
+        temp=self.readRegister(1,50)
+        current_atten_values.extend([temp[3],temp[2],temp[1]])
+        temp=self.readRegister(1,51)
+        current_atten_values.extend([temp[3],temp[2],temp[1]])
+        temp=self.readRegister(1,52)
+        current_atten_values.extend([temp[3],temp[2]])
+        temp=self.readRegister(0,50)
+        current_atten_values.extend([temp[3],temp[2],temp[1]])
+        temp=self.readRegister(0,51)
+        current_atten_values.extend([temp[3]])
+        return current_atten_values
+                                                                                
+    def setAttenValues(self, atten_values, readback=True):
+        self.write(1, [50, atten_values[2] & 0xFF, atten_values[1] & 0xFF, atten_values[0] & 0xFF])
+        self.write(1, [51, atten_values[5] & 0xFF, atten_values[4] & 0xFF, atten_values[3] & 0xFF])
+        self.write(1, [52, 0x00, atten_values[7] & 0xFF, atten_values[6] & 0xFF])
+        self.write(1, [53,0,0,0])
+        self.write(0, [50, atten_values[10] & 0xFF, atten_values[9] & 0xFF, atten_values[8] & 0xFF])
+        self.write(0, [51, 0x00, 0x00, atten_values[11] & 0xFF])
+        self.write(0, [53,0,0,0])
+        if readback:
+            print 'set attenuation values to:', atten_values
+            readback_atten_values = self.getCurrentAttenValues()
+            print 'reading back:', readback_atten_values
+            return readback_atten_values
 
+    def updateScalerValues(self, bus=1):
+        self.write(bus, [40,0,0,1])
+
+    def setScalerOut(self, scaler_adr=0, bus=1):
+        if scaler_adr < 0 or scaler_adr > 15:
+            return None
+        self.write(bus, [41,0,0,scaler_adr])
+
+    def readSingleScaler(self, bus=1):
+        read_scaler_reg = self.readRegister(bus,3)
+        scaler_low = (read_scaler_reg[2] & 0x0F) << 8 | read_scaler_reg[3]
+        scaler_hi  = (read_scaler_reg[1] & 0xFF) << 4 | (read_scaler_reg[2] & 0xF0) >> 4
+        return scaler_low, scaler_hi
+    
+    def readScalers(self, bus=1):
+        scaler_dict = {}
+        scaler_dict[0] = 0 #total phased trigger rate
+        scaler_dict[1] = [] #rate in each beam
+        self.updateScalerValues()
+        self.setScalerOut(0)
+        temp = self.readSingleScaler()
+        scaler_dict[0] = temp[0]
+        scaler_dict[1].append(temp[1])
+        #loop through the rest of the beam scalers:
+        for i in range(1,8):
+            self.setScalerOut(i)
+            temp = self.readSingleScaler()
+            scaler_dict[1].extend([temp[0],temp[1]])
+
+        ##add gated scalers
+
+        return scaler_dict
+
+    def enablePhasedTrigger(self, enable=True, readback=True, bus=1):
+        readback_trig_reg = self.readRegister(bus, 82)
+        if enable:
+            self.write(bus,[82, readback_trig_reg[1], readback_trig_reg[2], readback_trig_reg[3] | 0x01])
+        else:
+            self.write(bus,[82, readback_trig_reg[1], readback_trig_reg[2], readback_trig_reg[3] & 0xFE])
+
+        if readback:
+            readback_trig_reg = self.readRegister(bus, 82)
+            print readback_trig_reg
+            return readback_trig_reg
+
+    def readAllThresholds(self, bus=1):
+        current_thresholds=[]
+        for i in range(16):
+            temp = self.readRegister(bus,86+i)
+            current_thresholds.append((temp[1] << 16) | (temp[2] << 8) | temp[3])
+        return current_thresholds
+    
+    def setBeamThresholds(self, threshold, beam=0, readback=True, bus=1):
+        if beam < 0 or beam > 15:
+            return None
+        if threshold < 0 or threshold > 0x0FFFFF:
+            print 'invalid threshold'
+            return None
+        threshold = int(threshold)
+        thresh_hi = (threshold & 0x0F0000) >> 16
+        thresh_mid = (threshold & 0x00FF00) >> 8
+        thresh_lo = (threshold & 0x0000FF)
+        self.write(bus, [86+beam, thresh_hi, thresh_mid, thresh_lo])
+
+        if readback:
+            readback_thresh = self.readRegister(1, 86+beam)
+            print 'reading back threshold for beam', beam, ' Value is', readback_thresh
+            return readback_thresh
+        
+        
 if __name__=="__main__":
     d=Nuphase()
     d.identify()

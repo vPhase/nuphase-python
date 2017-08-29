@@ -28,10 +28,12 @@ class Nuphase():
     def __init__(self, spi_clk_freq=10000000):
         GPIO.setup("P9_12", GPIO.OUT) #enable pin for 2.5V bus drivers
         GPIO.output("P9_12", GPIO.LOW)  #enable for 2.5V bus drivers
+        self.BUS_MASTER = 1
+        self.BUS_SLAVE = 0
         self.spi={}
-        self.spi[0]=SPI.SPI(0,0) #setup SPI0
+        self.spi[0]=SPI.SPI(self.BUS_SLAVE,0) #setup SPI0
         self.spi[0].mode = 0
-        self.spi[1]=SPI.SPI(1,0)
+        self.spi[1]=SPI.SPI(self.BUS_MASTER,0)
         self.spi[1].mode = 0
         try:
             self.spi[0].msh = spi_clk_freq
@@ -67,12 +69,12 @@ class Nuphase():
     def dna(self):
         dna_bytes = 8
         
-        dna_low_slave = self.readRegister(0,4) #lower 3 bytes 
-        dna_mid_slave = self.readRegister(0,5) #middle 3 bytes
-        dna_hi_slave  = self.readRegister(0,6) #upper 2 bytes
-        dna_low_master = self.readRegister(1,4) #lower 3 bytes 
-        dna_mid_master = self.readRegister(1,5) #middle 3 bytes
-        dna_hi_master  = self.readRegister(1,6) #upper 2 bytes        
+        dna_low_slave = self.readRegister(self.BUS_SLAVE,4) #lower 3 bytes 
+        dna_mid_slave = self.readRegister(self.BUS_SLAVE,5) #middle 3 bytes
+        dna_hi_slave  = self.readRegister(self.BUS_SLAVE,6) #upper 2 bytes
+        dna_low_master = self.readRegister(self.BUS_MASTER,4) #lower 3 bytes 
+        dna_mid_master = self.readRegister(self.BUS_MASTER,5) #middle 3 bytes
+        dna_hi_master  = self.readRegister(self.BUS_MASTER,6) #upper 2 bytes        
 
         board_dna_slave = 0
         board_dna_master = 0
@@ -103,15 +105,23 @@ class Nuphase():
 
     def reset(self, sync=True):
         if sync:
-            self.write(1,[39,0,0,1])
-        self.write(0, [127,0,0,1])
-        self.write(1, [127,0,0,1])
+            self.write(self.BUS_MASTER,[39,0,0,1])
+        self.write(self.BUS_SLAVE, [127,0,0,1])
+        self.write(self.BUS_MASTER, [127,0,0,1])
         if sync:
-            self.write(1,[39,0,0,0])
-        
+            self.write(self.BUS_MASTER,[39,0,0,0])
+
+    def resetADC(self, sync=True):
+        if sync:
+            self.write(self.BUS_MASTER,[39,0,0,1])
+        self.write(self.BUS_SLAVE, [127,0,0,4])
+        self.write(self.BUS_MASTER, [127,0,0,4])
+        if sync:
+            self.write(self.BUS_MASTER,[39,0,0,0])
+                                                        
     def boardInit(self, verbose=False):
         self.write(1,[39,0,0,0]) #make sure sync disabled
-        self.write(1,[82,0,0,0]) #turn off trigger enables
+        self.enablePhasedTrigger(False, readback=verbose) #turn off trigger enables
         self.write(1,[39,0,0,1]) #send sync
         self.write(0,[77,0,0,15]) #clear all buffers on slave
         self.write(1,[77,0,0,15]) #clear all buffers on master
@@ -130,11 +140,11 @@ class Nuphase():
 
     def dclkReset(self, sync=True):
         if sync:
-            self.write(1, [39,0,0,1]) #send sync
-        self.write(0, [55,0,0,1]) #send dclk reset pulse to slave
-        self.write(1, [55,0,0,1]) #send dclk reset pulse to master
+            self.write(self.BUS_MASTER, [39,0,0,1]) #send sync
+        self.write(self.BUS_SLAVE, [55,0,0,1]) #send dclk reset pulse to slave
+        self.write(self.BUS_MASTER, [55,0,0,1]) #send dclk reset pulse to master
         if sync:
-            self.write(0, [39,0,0,0]) #release sync
+            self.write(self.BUS_MASTER, [39,0,0,0]) #release sync
             
     def calPulser(self, enable=True, readback=False):
         if enable:
@@ -284,13 +294,13 @@ class Nuphase():
         return current_atten_values
                                                                                 
     def setAttenValues(self, atten_values, readback=True):
-        self.write(1, [50, atten_values[2] & 0xFF, atten_values[1] & 0xFF, atten_values[0] & 0xFF])
-        self.write(1, [51, atten_values[5] & 0xFF, atten_values[4] & 0xFF, atten_values[3] & 0xFF])
-        self.write(1, [52, 0x00, atten_values[7] & 0xFF, atten_values[6] & 0xFF])
-        self.write(1, [53,0,0,0])
-        self.write(0, [50, atten_values[10] & 0xFF, atten_values[9] & 0xFF, atten_values[8] & 0xFF])
-        self.write(0, [51, 0x00, 0x00, atten_values[11] & 0xFF])
-        self.write(0, [53,0,0,0])
+        self.write(self.BUS_MASTER, [50, atten_values[2] & 0xFF, atten_values[1] & 0xFF, atten_values[0] & 0xFF])
+        self.write(self.BUS_MASTER, [51, atten_values[5] & 0xFF, atten_values[4] & 0xFF, atten_values[3] & 0xFF])
+        self.write(self.BUS_MASTER, [52, 0x00, atten_values[7] & 0xFF, atten_values[6] & 0xFF])
+        self.write(self.BUS_MASTER, [53,0,0,0])
+        self.write(self.BUS_SLAVE, [50, atten_values[10] & 0xFF, atten_values[9] & 0xFF, atten_values[8] & 0xFF])
+        self.write(self.BUS_SLAVE, [51, 0x00, 0x00, atten_values[11] & 0xFF])
+        self.write(self.BUS_SLAVE, [53,0,0,0])
         if readback:
             print 'set attenuation values to:', atten_values
             readback_atten_values = self.getCurrentAttenValues()

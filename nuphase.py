@@ -121,11 +121,9 @@ class Nuphase():
                                                         
     def boardInit(self, verbose=False):
         self.write(1,[39,0,0,0]) #make sure sync disabled
+        self.enablePhasedTriggerToDataManager(False, readback=verbose)
         self.enablePhasedTrigger(False, readback=verbose) #turn off trigger enables
-        self.write(1,[39,0,0,1]) #send sync
-        self.write(0,[77,0,0,15]) #clear all buffers on slave
-        self.write(1,[77,0,0,15]) #clear all buffers on master
-        self.write(1,[39,0,0,0]) #release sync
+        self.bufferClear(15)
         self.write(1,[39,0,0,1]) #send sync
         self.write(0,[77,0,1,0]) #set buffer to 0 on slave
         self.write(1,[77,0,1,0]) #set buffer to 0 
@@ -137,6 +135,12 @@ class Nuphase():
         self.setReadoutBuffer(0)
         
         self.getDataManagerStatus(verbose=verbose)
+
+    def bufferClear(self, buf_clear_flag=15):
+         self.write(self.BUS_MASTER,[39,0,0,1]) #send sync
+         self.write(self.BUS_SLAVE, [77,0,0,buf_clear_flag]) #clear buffers on slave
+         self.write(self.BUS_MASTER,[77,0,0,buf_clear_flag]) #clear buffers on master
+         self.write(self.BUS_MASTER,[39,0,0,0]) #release sync
 
     def dclkReset(self, sync=True):
         if sync:
@@ -208,22 +212,36 @@ class Nuphase():
         trig_time_slave_hi = self.readRegister(0, 15)
         deadtime_master = self.readRegister(1,16)
         deadtime_slave = self.readRegister(0,16)
+        trig_info_master = self.readRegister(self.BUS_MASTER,17)
+        trig_info_slave = self.readRegister(self.BUS_SLAVE,17)
+        trig_beam_power = []
+        for i in range(15):
+            trig_beam_power.append(self.readRegister(self.BUS_MASTER, 20+i) )
         
         metadata['master']['evt_count'] = evt_counter_master_hi[1] << 40 | evt_counter_master_hi[3] << 32 | evt_counter_master_hi[3] << 24 |\
                                    evt_counter_master_lo[1] << 16 | evt_counter_master_lo [2] << 8 | evt_counter_master_lo[3]
         metadata['master']['trig_count'] = trig_counter_master_hi[1] << 40 | trig_counter_master_hi[3] << 32 | trig_counter_master_hi[3] << 24 |\
                                     trig_counter_master_lo[1] << 16 | trig_counter_master_lo [2] << 8 | trig_counter_master_lo[3]
-        metadata['master']['trig_time'] = trig_time_master_hi[1] << 40 | trig_time_master_hi[3] << 32 | trig_time_master_hi[3] << 24 |\
+        metadata['master']['trig_time'] = trig_time_master_hi[1] << 40 | trig_time_master_hi[2] << 32 | trig_time_master_hi[3] << 24 |\
                                    trig_time_master_lo[1] << 16 | trig_time_master_lo[2] << 8 | trig_time_master_lo[3]
         metadata['master']['deadtime'] =  deadtime_master[1] << 16 | deadtime_master[2] << 8 | deadtime_master[3]
+        metadata['master']['last_beam_trig'] = (trig_info_master[2] & 0x7F) << 8 | trig_info_master[3]
+        metadata['master']['trig_type'] = (trig_info_master[1] & 0x01) << 1 | (trig_info_master[2] & 0x80) >> 7
+        metadata['master']['buffer_no'] = (trig_info_master[1] & 0xC0) >> 6
         metadata['slave']['evt_count'] = evt_counter_slave_hi[1] << 40 | evt_counter_slave_hi[3] << 32 | evt_counter_slave_hi[3] << 24 |\
                                    evt_counter_slave_lo[1] << 16 | evt_counter_slave_lo [2] << 8 | evt_counter_slave_lo[3]
         metadata['slave']['trig_count'] = trig_counter_slave_hi[1] << 40 | trig_counter_slave_hi[3] << 32 | trig_counter_slave_hi[3] << 24 |\
                                     trig_counter_slave_lo[1] << 16 | trig_counter_slave_lo [2] << 8 | trig_counter_slave_lo[3]
-        metadata['slave']['trig_time'] = trig_time_slave_hi[1] << 40 | trig_time_slave_hi[3] << 32 | trig_time_slave_hi[3] << 24 |\
+        metadata['slave']['trig_time'] = trig_time_slave_hi[1] << 40 | trig_time_slave_hi[2] << 32 | trig_time_slave_hi[3] << 24 |\
                                    trig_time_slave_lo[1] << 16 | trig_time_slave_lo[2] << 8 | trig_time_slave_lo[3]
         metadata['slave']['deadtime'] =  deadtime_slave[1] << 16 | deadtime_slave[2] << 8 | deadtime_slave[3]
-                        
+        metadata['slave']['trig_type'] = (trig_info_slave[1] & 0x01) << 1 | (trig_info_slave[2] & 0x80) >> 7
+        metadata['slave']['buffer_no'] = (trig_info_slave[1] & 0xC0) >> 6
+
+        metadata['master']['beam_power']=[]
+        for i in range(15):
+            metadata['master']['beam_power'].append(trig_beam_power[i][1] << 16 | trig_beam_power[i][2] << 8 | trig_beam_power[i][3])
+                                   
         return metadata
 
     def readSysEvent(self, address_start=1, address_stop=64, save=True, filename='test.dat'):
@@ -311,7 +329,7 @@ class Nuphase():
         self.write(bus, [40,0,0,1])
 
     def setScalerOut(self, scaler_adr=0, bus=1):
-        if scaler_adr < 0 or scaler_adr > 15:
+        if scaler_adr < 0 or scaler_adr > 24:
             return None
         self.write(bus, [41,0,0,scaler_adr])
 
@@ -325,19 +343,36 @@ class Nuphase():
         scaler_dict = {}
         scaler_dict[0] = 0 #total phased trigger rate
         scaler_dict[1] = [] #rate in each beam
+        scaler_dict[2] = 0  # every-second total
+        scaler_dict[3] = [] #every-second rate in each beam
+        scaler_dict[4] = 0 # total, gated
+        scaler_dict[5] = [] #each beam, gated
         self.updateScalerValues()
         self.setScalerOut(0)
         temp = self.readSingleScaler()
         scaler_dict[0] = temp[0]
         scaler_dict[1].append(temp[1])
+        self.setScalerOut(16)
+        temp = self.readSingleScaler()
+        scaler_dict[2] = temp[0]
+        scaler_dict[3].append(temp[1])
+        self.setScalerOut(8)
+        temp = self.readSingleScaler()
+        scaler_dict[4] = temp[0]
+        scaler_dict[5].append(temp[1])
+                                
         #loop through the rest of the beam scalers:
         for i in range(1,8):
             self.setScalerOut(i)
             temp = self.readSingleScaler()
             scaler_dict[1].extend([temp[0],temp[1]])
-
-        ##add gated scalers
-
+            self.setScalerOut(i+16)
+            temp = self.readSingleScaler()
+            scaler_dict[3].extend([temp[0],temp[1]])
+            self.setScalerOut(i+8)
+            temp = self.readSingleScaler()
+            scaler_dict[5].extend([temp[0],temp[1]])
+            
         return scaler_dict
 
     def enablePhasedTrigger(self, enable=True, readback=True, bus=1):
@@ -352,6 +387,22 @@ class Nuphase():
             print readback_trig_reg
             return readback_trig_reg
 
+
+    def enablePhasedTriggerToDataManager(self, enable=True, readback=False):
+        self.write(self.BUS_MASTER, [39,0,0,1])
+        if enable:
+            self.write(self.BUS_SLAVE, [84,0,0,1])
+            self.write(self.BUS_MASTER, [84,0,0,1])
+        else:
+            self.write(self.BUS_SLAVE, [84,0,0,0])
+            self.write(self.BUS_MASTER, [84,0,0,0])
+        self.write(self.BUS_MASTER, [39,0,0,0])
+
+        if readback:
+            readback_trig_reg = self.readRegister(self.BUS_MASTER, 84)
+            print readback_trig_reg
+            return readback_trig_reg
+        
     def readAllThresholds(self, bus=1):
         current_thresholds=[]
         for i in range(16):

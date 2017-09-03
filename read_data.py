@@ -9,7 +9,7 @@ d.boardInit(True)
 
 d.enablePhasedTrigger(True)
 for i in range(15):
-    d.setBeamThresholds(38000, i)
+    d.setBeamThresholds(20000, i)
 
 time.sleep(15)
 print d.readScalers()
@@ -26,7 +26,7 @@ for i in range(4):
 d.bufferClear(15)
 
 cur_event = 0
-NEVENTS=10
+NEVENTS=200
 all_metadata=[]
 while(cur_event < NEVENTS):
     time.sleep(0.0001)

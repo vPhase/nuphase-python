@@ -123,6 +123,8 @@ class Nuphase():
         self.write(1,[39,0,0,0]) #make sure sync disabled
         self.enablePhasedTriggerToDataManager(False, readback=verbose)
         self.enablePhasedTrigger(False, readback=verbose) #turn off trigger enables
+        self.calPulser(False)
+        self.preTriggerWindow()
         self.bufferClear(15)
         self.write(1,[39,0,0,1]) #send sync
         self.write(0,[77,0,1,0]) #set buffer to 0 on slave
@@ -214,6 +216,7 @@ class Nuphase():
         deadtime_slave = self.readRegister(0,16)
         trig_info_master = self.readRegister(self.BUS_MASTER,17)
         trig_info_slave = self.readRegister(self.BUS_SLAVE,17)
+        scaler_counter_master = self.readRegister(self.BUS_MASTER, 19)
         trig_beam_power = []
         for i in range(15):
             trig_beam_power.append(self.readRegister(self.BUS_MASTER, 20+i) )
@@ -237,6 +240,9 @@ class Nuphase():
         metadata['slave']['deadtime'] =  deadtime_slave[1] << 16 | deadtime_slave[2] << 8 | deadtime_slave[3]
         metadata['slave']['trig_type'] = (trig_info_slave[1] & 0x01) << 1 | (trig_info_slave[2] & 0x80) >> 7
         metadata['slave']['buffer_no'] = (trig_info_slave[1] & 0xC0) >> 6
+
+        metadata['master']['scaler_slow'] = (scaler_counter_master[2] & 0x0F) << 8 | scaler_counter_master[3]
+        metadata['master']['scaler_fast'] = (scaler_counter_master[1] & 0xFF) << 4 | (scaler_counter_master[2] & 0xF0) >> 4
 
         metadata['master']['beam_power']=[]
         for i in range(15):
@@ -375,6 +381,10 @@ class Nuphase():
             
         return scaler_dict
 
+    def preTriggerWindow(self, value=4):
+        self.write(self.BUS_SLAVE, [76, 0, 0, value & 0xFF])
+        self.write(self.BUS_MASTER, [76, 0, 0, value & 0xFF])
+
     def enablePhasedTrigger(self, enable=True, readback=True, bus=1):
         readback_trig_reg = self.readRegister(bus, 82)
         if enable:
@@ -386,7 +396,6 @@ class Nuphase():
             readback_trig_reg = self.readRegister(bus, 82)
             print readback_trig_reg
             return readback_trig_reg
-
 
     def enablePhasedTriggerToDataManager(self, enable=True, readback=False):
         self.write(self.BUS_MASTER, [39,0,0,1])
@@ -405,7 +414,7 @@ class Nuphase():
         
     def readAllThresholds(self, bus=1):
         current_thresholds=[]
-        for i in range(16):
+        for i in range(15):
             temp = self.readRegister(bus,86+i)
             current_thresholds.append((temp[1] << 16) | (temp[2] << 8) | temp[3])
         return current_thresholds

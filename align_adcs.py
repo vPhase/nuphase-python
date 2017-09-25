@@ -5,7 +5,7 @@ import numpy
 NUM_TRIES = 10
 verbose=True
 
-def init(verbose=verbose):
+def init(verbose=verbose, reset_shift_bytes=True):
     sys = nuphase.Nuphase()
     sys.boardInit(verbose=verbose)
     current_atten_values = sys.getCurrentAttenValues()
@@ -13,17 +13,18 @@ def init(verbose=verbose):
     sys.calPulser(True, readback=verbose) #turn on cal pulse feature
 
     SHIFT_BYTES = numpy.zeros(12, dtype=int)
-    #set to 0 and read in current values for delay:
-    for i in range(4):
-        sys.write(sys.BUS_MASTER, [56+i,0,0,0])
-        readback = sys.readRegister(sys.BUS_MASTER, 56+i)
-        SHIFT_BYTES[2*i] = readback[3]
-        SHIFT_BYTES[2*i+1] = readback[2]
-    for i in range(2):
-        sys.write(sys.BUS_SLAVE, [56+i,0,0,0])
-        readback = sys.readRegister(sys.BUS_SLAVE, 56+i)
-        SHIFT_BYTES[2*i+8] = readback[3]
-        SHIFT_BYTES[2*i+1+8] = readback[2]
+    if reset_shift_bytes:
+        #set to 0 and read in current values for delay:
+        for i in range(4):
+            sys.write(sys.BUS_MASTER, [56+i,0,0,0])
+            readback = sys.readRegister(sys.BUS_MASTER, 56+i)
+            SHIFT_BYTES[2*i] = readback[3]
+            SHIFT_BYTES[2*i+1] = readback[2]
+        for i in range(2):
+            sys.write(sys.BUS_SLAVE, [56+i,0,0,0])
+            readback = sys.readRegister(sys.BUS_SLAVE, 56+i)
+            SHIFT_BYTES[2*i+8] = readback[3]
+            SHIFT_BYTES[2*i+1+8] = readback[2]
     
     return sys, SHIFT_BYTES, current_atten_values
 
@@ -135,7 +136,63 @@ def close(sys, atten_values, verbose):
     sys.calPulser(False, readback=verbose)
     sys.setAttenValues(atten_values, readback=verbose)
 
+
+def checkAlignment(NUM_TRIES=50, verbose=False):
+    num_tests=0
+    num_success=0
+    num_almost_success=0
+
+    sys, _, current_atten_values = init(reset_shift_bytes=False)
+
+    for i in range(NUM_TRIES):
+        sys.boardInit()  #only deal with buffer 0
+        sys.calPulser(True)
+        sys.softwareTrigger()
+        time.sleep(0.001)
+        data = sys.readSysEvent(save=False)
+        if verbose:
+            print sys.getMetaData()
+        location_of_peaks = getPeaks(data)
+        earliest_peak = min(location_of_peaks)
+        latest_peak = max(location_of_peaks)
+
+        #condition if peaks caught from multiple pulses
+        if (latest_peak - earliest_peak) > 300:
+            if verbose:
+                print i, location_of_peaks, "skipping, trying again..."
+            continue
+
+        num_tests=num_tests+1
+        #otherwise, try to align
+        if location_of_peaks[0] == location_of_peaks[2] == location_of_peaks[4] ==\
+           location_of_peaks[6] == location_of_peaks[8] == location_of_peaks[10]:
+            if verbose:
+                print 'alignment successful: ', location_of_peaks
+            #sys.readSysEvent(save=True, filename='test_alignment.dat') #save pulse event for verification
+            num_success=num_success+1
+        else:
+            if verbose:
+                print i, 'DATA ARE NOT ALIGNED..', location_of_peaks, earliest_peak, latest_peak
+            if abs(latest_peak - earliest_peak) == 1:
+                num_almost_success = num_almost_success + 1
+                
+    sys.boardInit()
+    sys.calPulser(False, readback=True)
+    print '-------------------------'
+    print 'RESULTS:', num_success, 'pure successes out of', num_tests, 'tries'
+    print 'RESULTS:', num_success+num_almost_success, 'almost successes (+/-1) out of', num_tests, 'tries'
+    
+
+##--------------------
+##run >>python align_adcs.py            to align board timestreams
+##run >>python align_adcs.py check      to verify alignment
 if __name__=="__main__":
-    retval=align()
-    if retval==0:
-        print 'problem here'
+    import sys
+
+    if len(sys.argv) == 1:
+        retval=align()
+        if retval==0:
+            print 'problem here'
+
+    elif sys.argv[1] == 'check':
+        checkAlignment()

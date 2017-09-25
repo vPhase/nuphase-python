@@ -5,6 +5,7 @@ from Adafruit_BBIO import SPI
 import Adafruit_BBIO.GPIO as GPIO
 import math
 import time
+import os
 from bf import *
 
 class Nuphase():
@@ -26,8 +27,9 @@ class Nuphase():
         }
         
     def __init__(self, spi_clk_freq=10000000):
-        GPIO.setup("P9_12", GPIO.OUT) #enable pin for 2.5V bus drivers
-        GPIO.output("P9_12", GPIO.LOW)  #enable for 2.5V bus drivers
+        if not os.path.isfile('/sys/class/gpio/gpio60/value'):
+            GPIO.setup("P9_12", GPIO.OUT) #enable pin for 2.5V bus drivers
+            GPIO.output("P9_12", GPIO.LOW)  #enable for 2.5V bus drivers
         self.BUS_MASTER = 1
         self.BUS_SLAVE = 0
         self.spi={}

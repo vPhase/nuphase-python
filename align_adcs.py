@@ -4,6 +4,8 @@ import numpy
 
 NUM_TRIES = 10
 verbose=True
+align_status_file = 'output/align_status'
+check_align_file  = 'output/align_check'
 
 def init(verbose=verbose, reset_shift_bytes=True):
     sys = nuphase.Nuphase()
@@ -181,7 +183,8 @@ def checkAlignment(NUM_TRIES=50, verbose=False):
     print '-------------------------'
     print 'RESULTS:', num_success, 'pure successes out of', num_tests, 'tries'
     print 'RESULTS:', num_success+num_almost_success, 'almost successes (+/-1) out of', num_tests, 'tries'
-    
+
+    return num_success, num_tests
 
 ##--------------------
 ##run >>python align_adcs.py            to align board timestreams
@@ -190,9 +193,23 @@ if __name__=="__main__":
     import sys
 
     if len(sys.argv) == 1:
+        file = open(align_status_file, 'w')
+        file.write("0")
+        file.close()
         retval=align()
         if retval==0:
             print 'problem here'
-
+        else:
+            file = open(align_status_file, 'w')
+            file.write("1")
+            file.close()
+                                    
+            
     elif sys.argv[1] == 'check':
-        checkAlignment()
+        success, tests = checkAlignment()
+        file = open(check_align_file, 'w')
+        file.write(str(success)+'\n')
+        file.write(str(tests))
+        file.close()
+                                    
+        

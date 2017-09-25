@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import nuphase
 import time
 import numpy
@@ -203,13 +204,12 @@ if __name__=="__main__":
             file = open(align_status_file, 'w')
             file.write("1")
             file.close()
+        sys.exit(retval)
                                     
-            
     elif sys.argv[1] == 'check':
         success, tests = checkAlignment()
         file = open(check_align_file, 'w')
-        file.write(str(success)+'\n')
-        file.write(str(tests))
+        file.write(str(success)+'\n'+str(tests))
         file.close()
                                     
         

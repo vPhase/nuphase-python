@@ -15,6 +15,7 @@ import numpy
 import nuphase
 import time
 import sys
+import json
 
 TARGET_NOISE_RMS_COUNTS_PHASED_BOARD = 4.2
 TARGET_NOISE_RMS_COUNTS_RX_BOARD = 7.1
@@ -35,10 +36,9 @@ def reverseBitsInByte(data):
     return reversed_bytes
 
 if __name__=='__main__':
-
     if len(sys.argv) == 3:
-        TARGET_NOISE_RMS_COUNTS_PHASED_BOARD = sys.argv[1]
-        TARGET_NOISE_RMS_COUNTS_RX_BOARD = sys.argv[2]
+        TARGET_NOISE_RMS_COUNTS_PHASED_BOARD = float(sys.argv[1])
+        TARGET_NOISE_RMS_COUNTS_RX_BOARD = float(sys.argv[2])
 
     TARGET_NOISE_RMS_COUNTS = [TARGET_NOISE_RMS_COUNTS_PHASED_BOARD] * 8
     TARGET_NOISE_RMS_COUNTS.extend([TARGET_NOISE_RMS_COUNTS_RX_BOARD]*4)
@@ -50,7 +50,8 @@ if __name__=='__main__':
     dev.setAttenValues(set_atten_values)
 
     done=False
-
+    rms_scan_dict = {}
+    iter_step = 0
     while(done==False):
         dev.boardInit()
         dev.softwareTrigger()
@@ -60,6 +61,8 @@ if __name__=='__main__':
         
         rms=getRMS(data)
         print 'rms:', rms
+        rms_scan_dict[iter_step] = (reversed_current_atten_values, rms)
+
         check_good = 0
         for i in range(12):
             if (rms[i] < TARGET_NOISE_RMS_COUNTS[i]) or (reversed_current_atten_values[i] == 127):
@@ -83,5 +86,9 @@ if __name__=='__main__':
             f.close()
             done = True
         time.sleep(0.1) #a bit of wait time
+        iter_step = iter_step + 1
+
+    with open('output/rms_scan.json', 'w') as f:
+        json.dump(rms_scan_dict,f)
     print done
     

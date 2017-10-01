@@ -206,8 +206,11 @@ if __name__=="__main__":
             file.close()
         sys.exit(retval)
                                     
-    elif sys.argv[1] == 'check':
-        success, tests = checkAlignment()
+    elif (len(sys.argv) > 1) and (sys.argv[1] == 'check'):
+        num_tries = 50
+        if len(sys.argv) == 3:
+            num_tries = int(sys.argv[2])
+        success, tests = checkAlignment(NUM_TRIES=num_tries)
         file = open(check_align_file, 'w')
         file.write(str(success)+'\n'+str(tests))
         file.close()

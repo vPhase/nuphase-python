@@ -6,7 +6,7 @@ import Adafruit_BBIO.GPIO as GPIO
 import math
 import time
 import os
-from bf import *
+from tools.bf import *
 
 class Nuphase():
     spi_bytes = 4  #transaction must include 4 bytes

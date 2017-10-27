@@ -1,0 +1,120 @@
+#
+#   EJO     10/2017
+#
+import nuphase
+import sys
+import time
+import tools.bf as bf
+
+#remote update block accepted commands to fw
+ru_cmd_map = {
+    'TRIG_COND_READONLY'   :  0x0,
+    'WATCHDOG_TIME_VALUE'  :  0x2,
+    'WATCHDOG_ENABLE'      :  0x3,
+    'PAGE_SELECT_ADDR'     :  0x4,
+    'AnF'                  :  0x5,
+    }
+
+ru_error = {
+    'WATCHDOG_TIMEOUT'     :  1,
+    'CRC_ERROR'            :  2,
+    'NSTAT_ERROR'          :  3,
+    }
+    
+def enableRemoteFirmwareBlock(dev, bus, enable=False):
+    dev.write(bus, [0x6E, 0x00, 0x00, (0x00 | enable)])
+    dev.write(bus, [0x75, 0x00, 0x00, 0x00])
+    
+def readRemoteConfigData(dev, bus, cmd):
+    dev.write(bus, [0x75, 0x00, 0x00, (0x00 | (0x7 & cmd))])
+    data_low = dev.readRegister(bus, address=0x68)
+    data_hi  = dev.readRegister(bus, address=0x69)
+    dev.write(bus, [0x74, 0x00, 0x00, 0x00])
+    return (data_low[2] << 8) | data_low[3], (data_hi[2] << 8) | data_hi[3]
+
+def readRemoteConfigStatus(dev, bus):
+    status = dev.readRegister(bus, address=0x67)
+    return status
+
+def writeRemoteConfiguration(dev, bus, cmd, value=0x00000000):
+    cmd_byte = 0x00 | (0x7 & cmd)
+    dev.write(bus, [0x75, 0x00, 0x00, cmd_byte])
+    value_byte_0 = int(value & 0x000000FF)
+    value_byte_1 = int(((value & 0x0000FF00) >> 8) & 0xFF)
+    value_byte_2 = int(((value & 0x00FF0000) >> 16) & 0xFF)
+    value_byte_3 = int(((value & 0xFF000000) >> 24) & 0xFF)
+    dev.write(bus, [0x76, 0x00, value_byte_1, value_byte_0])
+    dev.write(bus, [0x77, 0x00, value_byte_3, value_byte_2])
+    dev.write(bus, [0x75, 0x00, 0x01, cmd_byte]) #toggle write
+    dev.write(bus, [0x75, 0x00, 0x00, 0x00])
+
+def readTrigCondition(dev, bus, verbose=True):
+    cond = readRemoteConfigData(dev, dev.BUS_MASTER, ru_cmd_map['TRIG_COND_READONLY'])[0]
+    bf_cond = bf.bf(cond) #trigger condition is lower 5 bits
+    if verbose:
+        print '--------------'
+        print 'FPGA remote upgrade trigger condition:', cond, \
+            ' // bits:', bf_cond[0], bf_cond[1], bf_cond[2], bf_cond[3], bf_cond[4]
+    if bf_cond[0] == 1:
+        return ru_error['CRC_ERROR']
+    elif bf_cond[1] == 1:
+        return ru_error['NSTAT_ERROR']
+    elif bf_cond[4] == 1:
+        return ru_error['WATCHDOG_TIMEOUT']
+    else:
+        if verbose:
+            print 'FPGA trig conditions look good'
+        return 0
+    
+def triggerReconfig(dev, bus):
+    dev.write(bus, [0x75, 0x01, 0x00, 0x00])
+
+def reconfigure(dev, bus, AnF=1, epcq_address = 0x01000000,
+                watchdog_value=1024, watchdog_enable=1, verbose=True, exit_on_trig_error=True):
+
+    trig_condition = readTrigCondition(dev, bus, verbose=verbose)
+    if trig_condition != 0 and exit_on_trig_error == True:
+        return trig_condition
+
+    #write the AnF bit
+    writeRemoteConfiguration(dev, bus, ru_cmd_map['AnF'], AnF)
+    if verbose:
+        print 'Reading back AnF value', \
+            readRemoteConfigData(dev, bus, ru_cmd_map['AnF'])[0]
+
+    #enable watchdog feature
+    writeRemoteConfiguration(dev, bus, ru_cmd_map['WATCHDOG_ENABLE'], watchdog_enable)
+    if verbose:
+        print 'Reading back watchdog enable value', \
+            readRemoteConfigData(dev, bus, ru_cmd_map['WATCHDOG_ENABLE'])[0]
+
+    #set watchdog timeout value
+    writeRemoteConfiguration(dev, bus, ru_cmd_map['WATCHDOG_TIME_VALUE'], watchdog_value)
+    if verbose:
+        print 'Reading back watchdog timeout value', \
+            readRemoteConfigData(dev, bus, ru_cmd_map['WATCHDOG_TIME_VALUE'])
+        
+    #set application start address
+    writeRemoteConfiguration(dev, bus, ru_cmd_map['PAGE_SELECT_ADDR'], epcq_address)
+    if verbose:
+        print 'Reading back EPCQ256 firmware image address', \
+            readRemoteConfigData(dev, bus, ru_cmd_map['PAGE_SELECT_ADDR'])
+
+    #triggerReconfig(dev, bus)
+    time.sleep(2)
+    return 0
+        
+if __name__=='__main__':
+
+    dev=nuphase.Nuphase()
+    enableRemoteFirmwareBlock(dev, dev.BUS_MASTER, True)
+    retval=reconfigure(dev, dev.BUS_MASTER)
+    print '-------------'
+    print 'reprogramming firmware...'
+    print '-------------'
+    time.sleep(20)
+    enableRemoteFirmwareBlock(dev, dev.BUS_MASTER, False)
+    enableRemoteFirmwareBlock(dev, dev.BUS_MASTER, True)
+    retval=readTrigCondition(dev, dev.BUS_MASTER)
+    enableRemoteFirmwareBlock(dev, dev.BUS_MASTER, False)
+    sys.exit(retval)

@@ -70,7 +70,7 @@ def triggerReconfig(dev, bus):
     dev.write(bus, [0x75, 0x01, 0x00, 0x00])
 
 def reconfigure(dev, bus, AnF=1, epcq_address = 0x01000000,
-                watchdog_value=1024, watchdog_enable=1, verbose=True, exit_on_trig_error=True):
+                watchdog_value=1024, watchdog_enable=1, verbose=True, exit_on_trig_error=False):
 
     trig_condition = readTrigCondition(dev, bus, verbose=verbose)
     if trig_condition != 0 and exit_on_trig_error == True:
@@ -82,7 +82,7 @@ def reconfigure(dev, bus, AnF=1, epcq_address = 0x01000000,
         print 'Reading back AnF value', \
             readRemoteConfigData(dev, bus, ru_cmd_map['AnF'])[0]
 
-    #enable watchdog feature
+    #enable watchdog featuregastroenterologist
     writeRemoteConfiguration(dev, bus, ru_cmd_map['WATCHDOG_ENABLE'], watchdog_enable)
     if verbose:
         print 'Reading back watchdog enable value', \
@@ -100,7 +100,7 @@ def reconfigure(dev, bus, AnF=1, epcq_address = 0x01000000,
         print 'Reading back EPCQ256 firmware image address', \
             readRemoteConfigData(dev, bus, ru_cmd_map['PAGE_SELECT_ADDR'])
 
-    #triggerReconfig(dev, bus)
+    triggerReconfig(dev, bus)
     time.sleep(2)
     return 0
         
@@ -108,7 +108,7 @@ if __name__=='__main__':
 
     dev=nuphase.Nuphase()
     enableRemoteFirmwareBlock(dev, dev.BUS_MASTER, True)
-    retval=reconfigure(dev, dev.BUS_MASTER)
+    retval=reconfigure(dev, dev.BUS_MASTER, AnF=0, epcq_address=0x0)
     print '-------------'
     print 'reprogramming firmware...'
     print '-------------'

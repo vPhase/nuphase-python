@@ -72,9 +72,9 @@ def triggerReconfig(dev, bus):
 def reconfigure(dev, bus, AnF=1, epcq_address = 0x01000000,
                 watchdog_value=1024, watchdog_enable=1, verbose=True, exit_on_trig_error=False):
 
-    trig_condition = readTrigCondition(dev, bus, verbose=verbose)
-    if trig_condition != 0 and exit_on_trig_error == True:
-        return trig_condition
+    #trig_condition = readTrigCondition(dev, bus, verbose=verbose)
+    #if trig_condition != 0 and exit_on_trig_error == True:
+    #    return trig_condition
 
     #write the AnF bit
     writeRemoteConfiguration(dev, bus, ru_cmd_map['AnF'], AnF)
@@ -101,14 +101,13 @@ def reconfigure(dev, bus, AnF=1, epcq_address = 0x01000000,
             readRemoteConfigData(dev, bus, ru_cmd_map['PAGE_SELECT_ADDR'])
 
     triggerReconfig(dev, bus)
-    time.sleep(2)
     return 0
         
 if __name__=='__main__':
 
     dev=nuphase.Nuphase()
     enableRemoteFirmwareBlock(dev, dev.BUS_MASTER, True)
-    retval=reconfigure(dev, dev.BUS_MASTER, AnF=0, epcq_address=0x0)
+    retval=reconfigure(dev, dev.BUS_MASTER, AnF=1)#, epcq_address=0x0)
     print '-------------'
     print 'reprogramming firmware...'
     print '-------------'

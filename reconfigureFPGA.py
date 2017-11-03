@@ -106,14 +106,15 @@ def reconfigure(dev, bus, AnF=1, epcq_address = 0x01000000,
 if __name__=='__main__':
 
     dev=nuphase.Nuphase()
+    enableRemoteFirmwareBlock(dev, dev.BUS_MASTER, False)
     enableRemoteFirmwareBlock(dev, dev.BUS_MASTER, True)
     retval=reconfigure(dev, dev.BUS_MASTER, AnF=1)#, epcq_address=0x0)
     print '-------------'
     print 'reprogramming firmware...'
     print '-------------'
     time.sleep(20)
-    enableRemoteFirmwareBlock(dev, dev.BUS_MASTER, False)
-    enableRemoteFirmwareBlock(dev, dev.BUS_MASTER, True)
+    enableRemoteFirmwareBlock(dev, dev.BUS_MASTER, False)  #need to disable/re-enable remote blocks to get
+    enableRemoteFirmwareBlock(dev, dev.BUS_MASTER, True)   #updated trig configuration status
     retval=readTrigCondition(dev, dev.BUS_MASTER)
     enableRemoteFirmwareBlock(dev, dev.BUS_MASTER, False)
     sys.exit(retval)

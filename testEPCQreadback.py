@@ -61,6 +61,6 @@ with open(filename, 'rb') as binary_rpd_file:
                     error = error+1
             if error > 0:
                 print 'uh oh'
-                time.sleep(0.5)
+#                time.sleep(0.5)
             
 reconfig.enableRemoteFirmwareBlock(dev, bus, False)    

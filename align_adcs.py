@@ -31,15 +31,17 @@ def init(verbose=verbose, reset_shift_bytes=True):
     
     return sys, SHIFT_BYTES, current_atten_values
 
-def getPeaks(data, mode=1):
+def getPeaks(data, mode=1, channels=[0,11]):
     location_of_peaks=[]
 
     pulse_threshold_master = 84
     pulse_threshold_slave  = 95
     pulse_thresholds = [pulse_threshold_master] * 8
     pulse_thresholds.extend([pulse_threshold_slave]*4)
-    
+
     for chan in range(len(data)):
+        if chan < channels[0] or chan > channels[1]:
+            continue
         ##mode = 0, simply use numpy.argmax
         if mode == 0:
             location_of_peaks.append(numpy.argmax(data[chan]))
@@ -47,11 +49,11 @@ def getPeaks(data, mode=1):
         ##mode = 1, a bit more complicated and board-specific
         elif mode == 1:
             location_of_peaks.append(numpy.where(numpy.transpose(data[chan]) > pulse_thresholds[chan])[0][0])
-            
+
     return location_of_peaks
 
             
-def align(NUM_TRIES=10):
+def align(NUM_TRIES=10, only_master_board=False):
     sys, SHIFT_BYTES, current_atten_values = init()
     
     DELAY_SLAVE_BY_CLKCYCLE = False
@@ -63,8 +65,11 @@ def align(NUM_TRIES=10):
         sys.softwareTrigger()
         time.sleep(0.001)
         data = sys.readSysEvent(save=False)
-    
-        location_of_peaks = getPeaks(data)
+
+        if only_master_board:
+            location_of_peaks = getPeaks(data, channels=[0,7])
+        else:
+            location_of_peaks = getPeaks(data)
 
         earliest_peak = min(location_of_peaks)
         earliest_peak_ch = numpy.argmin(location_of_peaks)
@@ -101,10 +106,17 @@ def align(NUM_TRIES=10):
             else:
                 DELAY_MASTER_BY_CLKCYCLE = True
                 DELAY_SLAVE_BY_CLKCYCLE = False
-            
+
+        check_peak_location=True
+        for i in range(2,len(location_of_peaks),2):
+            if location_of_peaks[i] != location_of_peaks[i-2]:
+                check_peak_location=False
+                break
+        
         #otherwise, try to align
-        if location_of_peaks[0] == location_of_peaks[2] == location_of_peaks[4] ==\
-           location_of_peaks[6] == location_of_peaks[8] == location_of_peaks[10]:
+        #if location_of_peaks[0] == location_of_peaks[2] == location_of_peaks[4] ==\
+        #   location_of_peaks[6] == location_of_peaks[8] == location_of_peaks[10]:
+        if check_peak_location:
             if verbose:
                 print 'alignment successful: ', location_of_peaks
                 print 'SHIFT BYTES:', SHIFT_BYTES
@@ -123,13 +135,14 @@ def align(NUM_TRIES=10):
                 SHIFT_BYTES[2*j+1] = 0x00 | DELAY_MASTER_BY_CLKCYCLE << 5 | True << 4 | (shift_value & 0xF)
                 sys.write(sys.BUS_MASTER, [56+j,0,SHIFT_BYTES[2*j+1], SHIFT_BYTES[2*j]])
 
-        for j in range(2):
-            shift_value = latest_peak+DELAY_SLAVE_BY_CLKCYCLE*16-location_of_peaks[2*j+8]+1
-            if shift_value != 0:
-                #should be identical for both channels within an ADC
-                SHIFT_BYTES[2*j+8] = 0x00 | DELAY_SLAVE_BY_CLKCYCLE << 5 | True << 4 | (shift_value & 0xF)
-                SHIFT_BYTES[2*j+1+8] = 0x00 | DELAY_SLAVE_BY_CLKCYCLE << 5 | True << 4 | (shift_value & 0xF)
-                sys.write(sys.BUS_SLAVE, [56+j,0,SHIFT_BYTES[2*j+1+8],SHIFT_BYTES[2*j+8]])
+        if not only_master_board:
+            for j in range(2):
+                shift_value = latest_peak+DELAY_SLAVE_BY_CLKCYCLE*16-location_of_peaks[2*j+8]+1
+                if shift_value != 0:
+                    #should be identical for both channels within an ADC
+                    SHIFT_BYTES[2*j+8] = 0x00 | DELAY_SLAVE_BY_CLKCYCLE << 5 | True << 4 | (shift_value & 0xF)
+                    SHIFT_BYTES[2*j+1+8] = 0x00 | DELAY_SLAVE_BY_CLKCYCLE << 5 | True << 4 | (shift_value & 0xF)
+                    sys.write(sys.BUS_SLAVE, [56+j,0,SHIFT_BYTES[2*j+1+8],SHIFT_BYTES[2*j+8]])
 
     close(sys, current_atten_values, verbose=verbose)
     return 0
@@ -140,7 +153,7 @@ def close(sys, atten_values, verbose):
     sys.setAttenValues(atten_values, readback=verbose)
 
 
-def checkAlignment(NUM_TRIES=50, verbose=False):
+def checkAlignment(channels=[0,11], NUM_TRIES=50, verbose=False):
     num_tests=0
     num_success=0
     num_almost_success=0
@@ -155,7 +168,7 @@ def checkAlignment(NUM_TRIES=50, verbose=False):
         data = sys.readSysEvent(save=False)
         if verbose:
             print sys.getMetaData()
-        location_of_peaks = getPeaks(data)
+        location_of_peaks = getPeaks(data, channels=channels)
         earliest_peak = min(location_of_peaks)
         latest_peak = max(location_of_peaks)
 
@@ -166,9 +179,17 @@ def checkAlignment(NUM_TRIES=50, verbose=False):
             continue
 
         num_tests=num_tests+1
+
+        check_peak_location=True
+        for i in range(2,len(location_of_peaks),2):
+            if location_of_peaks[i] != location_of_peaks[i-2]:
+                check_peak_location=False
+                break
+                                                  
         #otherwise, try to align
-        if location_of_peaks[0] == location_of_peaks[2] == location_of_peaks[4] ==\
-           location_of_peaks[6] == location_of_peaks[8] == location_of_peaks[10]:
+        #if location_of_peaks[0] == location_of_peaks[2] == location_of_peaks[4] ==\
+        #   location_of_peaks[6] == location_of_peaks[8] == location_of_peaks[10]:
+        if check_peak_location:
             if verbose:
                 print 'alignment successful: ', location_of_peaks
             #sys.readSysEvent(save=True, filename='test_alignment.dat') #save pulse event for verification
@@ -183,21 +204,44 @@ def checkAlignment(NUM_TRIES=50, verbose=False):
     sys.calPulser(False, readback=True)
     print '-------------------------'
     print 'RESULTS:', num_success, 'pure successes out of', num_tests, 'tries'
-    print 'RESULTS:', num_success+num_almost_success, 'almost successes (+/-1) out of', num_tests, 'tries'
+    print 'RESULTS:', num_success+num_almost_success, '>= almost successes (+/-1) out of', num_tests, 'tries'
 
     return num_success, num_tests
 
 ##--------------------
 ##run >>python align_adcs.py            to align board timestreams
-##run >>python align_adcs.py check      to verify alignment
+##run >>python align_adcs.py -c         to verify alignment
 if __name__=="__main__":
     import sys
+    from optparse import OptionParser
 
-    if len(sys.argv) == 1:
+    parser = OptionParser()
+    usage = "usage: %prog [options]"
+    parser.add_option("-c", "--check", action="store_const", dest="check", const=True)
+    parser.add_option("-m", "--master-only", action="store_const", dest="master", const=True)
+    (options, args) = parser.parse_args()
+
+
+    if options.check:
+        num_tries = 50
+        #if len(sys.argv) == 3:
+        #    num_tries = int(sys.argv[2])
+        if options.master:
+            success, tests = checkAlignment(NUM_TRIES=num_tries, channels=[0,7])
+        else:
+            success, tests = checkAlignment(NUM_TRIES=num_tries)
+        file = open(check_align_file, 'w')
+        file.write(str(success)+'\n'+str(tests))
+        file.close()
+            
+    else:
         file = open(align_status_file, 'w')
         file.write("0")
         file.close()
-        retval=align()
+        if options.master:
+            retval=align(only_master_board=True)
+        else:
+            retval=align()
         if retval==0:
             print 'problem here'
         else:
@@ -205,14 +249,6 @@ if __name__=="__main__":
             file.write("1")
             file.close()
         sys.exit(retval)
-                                    
-    elif (len(sys.argv) > 1) and (sys.argv[1] == 'check'):
-        num_tries = 50
-        if len(sys.argv) == 3:
-            num_tries = int(sys.argv[2])
-        success, tests = checkAlignment(NUM_TRIES=num_tries)
-        file = open(check_align_file, 'w')
-        file.write(str(success)+'\n'+str(tests))
-        file.close()
+ 
                                     
         

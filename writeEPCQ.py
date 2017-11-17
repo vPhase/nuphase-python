@@ -1,3 +1,4 @@
+#!/usr/bin/python
 #
 #   EJO     10/2017
 #   write new firmware image to NuPhase board EEPROM
@@ -12,8 +13,8 @@ directory = '/home/nuphase/firmware/'
 filename = directory+'newfirmware.rpd'
 
 FILEMAP_START_ADDR = 0x00000000
-FILEMAP_END_ADDR   = 0x00A44A7F 
-TARGET_START_ADDR  = 0x01000000 #address where application firmware image is stored
+FILEMAP_END_ADDR   = 0x00A44A7F #this value needs to be updated for each new firmware version
+TARGET_START_ADDR  = 0x01000000 #address where application firmware image is stored - STATIC, DO NOT CHANGE!!
 
 def setMode(dev, bus, mode):
     #mode = 1 to write to 256 byte firmware block FIFO
@@ -213,8 +214,21 @@ def writeFirmwareToEPCQ(dev, bus, filename, FILEMAP_START_ADDR, FILEMAP_END_ADDR
     sys.stdout.write('{:.2f} MB written to device; now at EEPROM address 0x{:x}. Time elapsed (min:sec) {:d}:{:.0f}         \n\n'.format((current_address-FILEMAP_START_ADDR-256)*1e-6, epcq_address, int(_min), _sec))               
     setMode(dev, bus, 0)
 
-if __name__=='__main__':
 
+###-----------------------------------------------------------------
+### load new application firmware image
+#
+###-----------------------------------------------------------------
+    
+if __name__=='__main__':
+    import sys
+    from optparse import OptionParser
+    parser = OptionParser()
+    (options, args) = parser.parse_args()
+    
+
+
+    
     dev=nuphase.Nuphase()
     bus = dev.BUS_MASTER
     print '\n RUNNING REMOTE FIRMWARE IMAGE UPDATE '

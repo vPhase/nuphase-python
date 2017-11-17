@@ -1,3 +1,4 @@
+#!/usr/bin/python
 #
 #   EJO     10/2017
 #
@@ -49,7 +50,7 @@ def writeRemoteConfiguration(dev, bus, cmd, value=0x00000000):
     dev.write(bus, [0x75, 0x00, 0x00, 0x00])
 
 def readTrigCondition(dev, bus, verbose=True):
-    cond = readRemoteConfigData(dev, dev.BUS_MASTER, ru_cmd_map['TRIG_COND_READONLY'])[0]
+    cond = readRemoteConfigData(dev, bus, ru_cmd_map['TRIG_COND_READONLY'])[0]
     bf_cond = bf.bf(cond) #trigger condition is lower 5 bits
     if verbose:
         print '--------------'
@@ -61,10 +62,13 @@ def readTrigCondition(dev, bus, verbose=True):
         return ru_error['NSTAT_ERROR']
     elif bf_cond[4] == 1:
         return ru_error['WATCHDOG_TIMEOUT']
-    else:
+    elif bf_cond[2] == 1 or bf_cond[3] ==1:
         if verbose:
             print 'FPGA trig conditions look good'
         return 0
+    else:
+        print 'weird, no trig condition received'
+        return -1
     
 def triggerReconfig(dev, bus):
     dev.write(bus, [0x75, 0x01, 0x00, 0x00])
@@ -82,7 +86,7 @@ def reconfigure(dev, bus, AnF=1, epcq_address = 0x01000000,
         print 'Reading back AnF value', \
             readRemoteConfigData(dev, bus, ru_cmd_map['AnF'])[0]
 
-    #enable watchdog featuregastroenterologist
+    #enable watchdog feature
     writeRemoteConfiguration(dev, bus, ru_cmd_map['WATCHDOG_ENABLE'], watchdog_enable)
     if verbose:
         print 'Reading back watchdog enable value', \
@@ -102,19 +106,58 @@ def reconfigure(dev, bus, AnF=1, epcq_address = 0x01000000,
 
     triggerReconfig(dev, bus)
     return 0
-        
-if __name__=='__main__':
 
+###-----------------------------------------------------------------------
+###  run FPGA reconfiguration
+# to load application firmware image on MASTER board: $ ./reconfigureFPGA.py -a 1
+# to load application firmware image on SLAVE board: $ ./reconfigureFPGA.py -a 0
+#
+# program should return '0' if reconfiguration looks successful
+###-----------------------------------------------------------------------
+if __name__=='__main__':
+    import sys
+    from optparse import OptionParser
+
+    parser = OptionParser()
+    usage = "usage: %prog [options]"
+    #option for loading application firmware image
+    parser.add_option("-a", "--application", action="store_const", dest="application", const=True)
+    (options, args) = parser.parse_args()
+
+    if len(args) < 1:
+        print "requires at least one argument."
+        print "You need specify FPGA to reconfigure - 0 for 'slave', 1 for 'master'"
+        sys.exit("FAILURE")
+
+    if options.application:
+        AnF = 1
+        epcq_address = 0x01000000
+        print '-------------------------------'
+        print 'loading application firmware...'
+        print '-------------------------------'
+    else:
+        AnF = 0
+        epcq_address = 0x00000000
+        
+
+    if int(args[0]) == 0:
+        bus = 0
+    elif int(args[0]) == 1:
+        bus = 1
+    else:
+        print 'incorrect argument. Specify SPI bus 0 or 1 to reconfigure'
+        sys.exit("FAILURE")
+        
     dev=nuphase.Nuphase()
-    enableRemoteFirmwareBlock(dev, dev.BUS_MASTER, False)
-    enableRemoteFirmwareBlock(dev, dev.BUS_MASTER, True)
-    retval=reconfigure(dev, dev.BUS_MASTER, AnF=1)#, epcq_address=0x0)
+    enableRemoteFirmwareBlock(dev, bus, False)
+    enableRemoteFirmwareBlock(dev, bus, True)
+    retval=reconfigure(dev, bus, AnF=AnF, epcq_address=epcq_address)
     print '-------------'
     print 'reprogramming firmware...'
     print '-------------'
     time.sleep(20)
-    enableRemoteFirmwareBlock(dev, dev.BUS_MASTER, False)  #need to disable/re-enable remote blocks to get
-    enableRemoteFirmwareBlock(dev, dev.BUS_MASTER, True)   #updated trig configuration status
-    retval=readTrigCondition(dev, dev.BUS_MASTER)
-    enableRemoteFirmwareBlock(dev, dev.BUS_MASTER, False)
-    sys.exit(retval)
+    enableRemoteFirmwareBlock(dev, bus, False)  #need to disable/re-enable remote blocks to get
+    enableRemoteFirmwareBlock(dev, bus, True)   #updated trig configuration status
+    retval=readTrigCondition(dev, bus)
+    enableRemoteFirmwareBlock(dev, bus, False)
+    sys.exit(retval)  #return 0 if successful (verify by reading back firmware version/date)

@@ -71,26 +71,26 @@ class Nuphase():
     def dna(self):
         dna_bytes = 8
         
-        dna_low_slave = self.readRegister(self.BUS_SLAVE,4) #lower 3 bytes 
-        dna_mid_slave = self.readRegister(self.BUS_SLAVE,5) #middle 3 bytes
-        dna_hi_slave  = self.readRegister(self.BUS_SLAVE,6) #upper 2 bytes
-        dna_low_master = self.readRegister(self.BUS_MASTER,4) #lower 3 bytes 
-        dna_mid_master = self.readRegister(self.BUS_MASTER,5) #middle 3 bytes
-        dna_hi_master  = self.readRegister(self.BUS_MASTER,6) #upper 2 bytes        
+        dna_low_slave  = self.readRegister(self.BUS_SLAVE,4)[::-1] #lower 3 bytes 
+        dna_mid_slave  = self.readRegister(self.BUS_SLAVE,5)[::-1] #middle 3 bytes
+        dna_hi_slave   = self.readRegister(self.BUS_SLAVE,6)[::-1] #upper 2 bytes
+        dna_low_master = self.readRegister(self.BUS_MASTER,4)[::-1] #lower 3 bytes 
+        dna_mid_master = self.readRegister(self.BUS_MASTER,5)[::-1] #middle 3 bytes
+        dna_hi_master  = self.readRegister(self.BUS_MASTER,6)[::-1] #upper 2 bytes        
 
         board_dna_slave = 0
         board_dna_master = 0
 
         for i in range(dna_bytes):
             if i < 3:
-                board_dna_slave = board_dna_slave | dna_low_slave[i] << i*8
-                board_dna_master = board_dna_master | dna_low_master[i] << i*8
+                board_dna_slave = board_dna_slave | (dna_low_slave[i] << i*8)
+                board_dna_master = board_dna_master | (dna_low_master[i] << i*8)
             elif i < 6:
-                board_dna_slave = board_dna_slave | dna_mid_slave[i-3] << i*8
-                board_dna_master = board_dna_master | dna_mid_master[i-3] << i*8
+                board_dna_slave = board_dna_slave | (dna_mid_slave[i-3] << i*8)
+                board_dna_master = board_dna_master | (dna_mid_master[i-3] << i*8)
             else:
-                board_dna_slave = board_dna_slave | dna_hi_slave[i-6] << i*8
-                board_dna_master = board_dna_master | dna_hi_master[i-6] << i*8
+                board_dna_slave = board_dna_slave | (dna_hi_slave[i-6] << i*8)
+                board_dna_master = board_dna_master | (dna_hi_master[i-6] << i*8)
 
         return board_dna_slave, board_dna_master
 
@@ -99,10 +99,12 @@ class Nuphase():
         for i in range(2):
             print "SPI bus", i
             firmware_version = self.readRegister(i, self.map['FIRMWARE_VER'])
+            firmware_version = [firmware_version[1], str((firmware_version[3] & 0xF0)>>4)+'.'+str(firmware_version[3]&0x0F)]
             print 'firmware version:', firmware_version
             firmware_date = self.readRegister(i, self.map['FIRMWARE_DATE'])
+            firmware_date = [(firmware_date[1])<<4 | (firmware_date[2] & 0xF0)>>4, firmware_date[2] & 0x0F, firmware_date[3]]
             print 'firmware date:', firmware_date
-            print 'board DNA:', dna[i]
+            print 'board DNA:', hex(dna[i])
             print '-----------------------------------'
 
     def reset(self, sync=True):
@@ -123,6 +125,7 @@ class Nuphase():
                                                         
     def boardInit(self, verbose=False):
         self.write(1,[39,0,0,0]) #make sure sync disabled
+        self.externalTriggerInputConfig(enable=False) #disable external trigger 
         self.enablePhasedTriggerToDataManager(False, readback=verbose)
         self.enablePhasedTrigger(False, readback=verbose) #turn off trigger enables
         self.calPulser(False)
@@ -288,7 +291,7 @@ class Nuphase():
     def readRamAddress(self, dev, address, readback_address=False, verbose=False):
         data=[]
         return_address=0
-        self.write(dev, [69,0,0, 0x7F & address])
+        self.write(dev, [69,0,0, 0xFF & address]) #note only picks off lower byte of address input
         if readback_address:
             return_address=self.readRegister(dev,69)
         self.write(dev,[35,0,0,0])
@@ -333,6 +336,14 @@ class Nuphase():
             print 'reading back:', readback_atten_values
             return readback_atten_values
 
+    def externalTriggerInputConfig(self, enable=False, use_gate_gen=False, gate_value=255):
+        self.write(self.BUS_MASTER, [39,0,0,1]) #send sync
+        gate_low_byte = gate_value & 0x00FF
+        gate_high_byte = (gate_value & 0xFF00) >> 8
+        self.write(self.BUS_SLAVE, [75, gate_high_byte, gate_low_byte, 0x00 | (use_gate_gen << 1) | enable])
+        self.write(self.BUS_MASTER, [75, gate_high_byte, gate_low_byte, 0x00 | (use_gate_gen << 1) | enable])
+        self.write(self.BUS_MASTER, [39,0,0,0]) 
+        
     def updateScalerValues(self, bus=1):
         self.write(bus, [40,0,0,1])
 
@@ -368,7 +379,14 @@ class Nuphase():
         temp = self.readSingleScaler()
         scaler_dict[4] = temp[0]
         scaler_dict[5].append(temp[1])
-                                
+
+        #read the ext-trig input (i.e. PPS) latched timestamp
+        tmp=self.readRegister(bus, 44)
+        latched_timestamp = 0x000000000000 | (tmp[1] << 16) | (tmp[2] << 8) | tmp[3]
+        tmp=self.readRegister(bus, 45)
+        latched_timestamp = (tmp[1] << 40) | (tmp[2] << 32) | (tmp[3] << 24) | latched_timestamp
+        scaler_dict[6] = latched_timestamp
+        
         #loop through the rest of the beam scalers:
         for i in range(1,8):
             self.setScalerOut(i)
@@ -380,23 +398,32 @@ class Nuphase():
             self.setScalerOut(i+8)
             temp = self.readSingleScaler()
             scaler_dict[5].extend([temp[0],temp[1]])
-            
+
+        # returns dictionary of scaler values
+        # keys: [0] = total 0.1 Hz scaler; [1] = individual beams 0.1 Hz scaler
+        #       [2] = total 1 Hz scaler; [3] = individual beams 1 Hz scaler
+        #       [4] = total 0.1 Hz gated scaler; [5] = individual beams 0.1 Hz gated scaler
+        #       [6] = latched timestamp value on ext trig input (i.e. pps)
         return scaler_dict
 
     def preTriggerWindow(self, value=4):
         self.write(self.BUS_SLAVE, [76, 0, 0, value & 0xFF])
         self.write(self.BUS_MASTER, [76, 0, 0, value & 0xFF])
 
-    def enablePhasedTrigger(self, enable=True, readback=True, bus=1):
+    def enablePhasedTrigger(self, enable=True, readback=True, verification_mode=True, bus=1):
         readback_trig_reg = self.readRegister(bus, 82)
         if enable:
             self.write(bus,[82, readback_trig_reg[1], readback_trig_reg[2], readback_trig_reg[3] | 0x01])
         else:
             self.write(bus,[82, readback_trig_reg[1], readback_trig_reg[2], readback_trig_reg[3] & 0xFE])
-
+        #set verification mode:
+        if verification_mode:
+            self.write(bus, [85,0,0,0x01])
+        else:
+            self.write(bus, [85,0,0,0x00])
+        ####
         if readback:
             readback_trig_reg = self.readRegister(bus, 82)
-            print readback_trig_reg
             return readback_trig_reg
 
     def enablePhasedTriggerToDataManager(self, enable=True, readback=False):

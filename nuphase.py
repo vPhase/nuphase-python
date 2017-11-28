@@ -115,6 +115,11 @@ class Nuphase():
         if sync:
             self.write(self.BUS_MASTER,[39,0,0,0])
 
+    def getDataValid(self):
+        data_valid_master = (self.readRegister(self.BUS_MASTER, 8)[3] & 16) >> 4
+        data_valid_slave  = (self.readRegister(self.BUS_SLAVE, 8)[3] & 16) >> 4
+        return data_valid_master, data_valid_slave
+            
     def resetADC(self, sync=True):
         if sync:
             self.write(self.BUS_MASTER,[39,0,0,1])
@@ -143,6 +148,20 @@ class Nuphase():
         
         self.getDataManagerStatus(verbose=verbose)
 
+    #same as above, but just reset the data manager stuff:
+    def eventInit(self):
+        self.write(1,[39,0,0,0])
+        self.bufferClear(15)
+        self.write(1,[39,0,0,1]) #send sync
+        self.write(0,[77,0,1,0]) #set buffer to 0 on slave
+        self.write(1,[77,0,1,0]) #set buffer to 0
+        self.write(1,[39,0,0,0]) #release sync
+        self.write(1,[39,0,0,1]) #send sync
+        self.write(0,[126,0,0,1]) #reset event counter/timestamp on slave
+        self.write(1,[126,0,0,1]) #reset event counter/timestamp
+        self.write(1,[39,0,0,0]) #release sync
+        self.setReadoutBuffer(0)
+        
     def bufferClear(self, buf_clear_flag=15):
          self.write(self.BUS_MASTER,[39,0,0,1]) #send sync
          self.write(self.BUS_SLAVE, [77,0,0,buf_clear_flag]) #clear buffers on slave
@@ -308,7 +327,7 @@ class Nuphase():
 
         return data
 
-    def getCurrentAttenValues(self):
+    def getCurrentAttenValues(self, verbose=False):
         current_atten_values = []
         temp=self.readRegister(1,50)
         current_atten_values.extend([temp[3],temp[2],temp[1]])
@@ -320,6 +339,8 @@ class Nuphase():
         current_atten_values.extend([temp[3],temp[2],temp[1]])
         temp=self.readRegister(0,51)
         current_atten_values.extend([temp[3]])
+        if verbose:
+            print 'reading back attenuation values:', current_atten_values
         return current_atten_values
                                                                                 
     def setAttenValues(self, atten_values, readback=True):
@@ -406,7 +427,7 @@ class Nuphase():
         #       [6] = latched timestamp value on ext trig input (i.e. pps)
         return scaler_dict
 
-    def preTriggerWindow(self, value=4):
+    def preTriggerWindow(self, value=6):
         self.write(self.BUS_SLAVE, [76, 0, 0, value & 0xFF])
         self.write(self.BUS_MASTER, [76, 0, 0, value & 0xFF])
 
@@ -440,7 +461,7 @@ class Nuphase():
             readback_trig_reg = self.readRegister(self.BUS_MASTER, 84)
             print readback_trig_reg
             return readback_trig_reg
-        
+
     def readAllThresholds(self, bus=1):
         current_thresholds=[]
         for i in range(15):
@@ -470,4 +491,5 @@ class Nuphase():
         
 if __name__=="__main__":
     d=Nuphase()
+    d.boardInit()
     d.identify()

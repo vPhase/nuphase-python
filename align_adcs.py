@@ -5,13 +5,13 @@ import numpy
 
 NUM_TRIES = 10
 verbose=True
-align_status_file = 'output/align_status'
-check_align_file  = 'output/align_check'
+align_status_file = '/home/nuphase/nuphase-python/output/align_status'
+check_align_file  = '/home/nuphase/nuphase-python/output/align_check'
 
 def init(verbose=verbose, reset_shift_bytes=True):
     sys = nuphase.Nuphase()
     sys.boardInit(verbose=verbose)
-    current_atten_values = sys.getCurrentAttenValues()
+    current_atten_values = sys.getCurrentAttenValues(verbose=True)
     sys.setAttenValues(numpy.zeros(12, dtype=int), readback=verbose)
     sys.calPulser(True, readback=verbose) #turn on cal pulse feature
 
@@ -48,10 +48,24 @@ def getPeaks(data, mode=1, channels=[0,11]):
             
         ##mode = 1, a bit more complicated and board-specific
         elif mode == 1:
-            location_of_peaks.append(numpy.where(numpy.transpose(data[chan]) > pulse_thresholds[chan])[0][0])
+            location_of_peaks_temp = numpy.where(numpy.transpose(data[chan]) > pulse_thresholds[chan])[0]
+            if len(location_of_peaks_temp) < 1:
+                location_of_peaks.append(-1)
+            else:
+                location_of_peaks.append(location_of_peaks_temp[0])
 
     return location_of_peaks
 
+def alignInit(sys):
+    sys.boardInit()
+    print 'checking ADC data good flags..'
+    while (sys.getDataValid() != (1,1)):
+        time.sleep(1)
+    print '...good\n'
+    sys.boardInit()
+    sys.softwareTrigger()
+    sys.readSysEvent(save=False)
+    sys.boardInit()
             
 def align(NUM_TRIES=10, only_master_board=False):
     sys, SHIFT_BYTES, current_atten_values = init()
@@ -59,6 +73,8 @@ def align(NUM_TRIES=10, only_master_board=False):
     DELAY_SLAVE_BY_CLKCYCLE = False
     DELAY_MASTER_BY_CLKCYCLE = False
 
+    alignInit(sys)
+    
     for i in range(NUM_TRIES):
         sys.boardInit()  #only deal with buffer 0
         sys.calPulser(True)
@@ -108,11 +124,26 @@ def align(NUM_TRIES=10, only_master_board=False):
                 DELAY_SLAVE_BY_CLKCYCLE = False
 
         check_peak_location=True
+        sum_of_peak_location = 0
         for i in range(2,len(location_of_peaks),2):
+            sum_of_peak_location = sum_of_peak_location + location_of_peaks[i-2]
             if location_of_peaks[i] != location_of_peaks[i-2]:
                 check_peak_location=False
                 break
-        
+
+        #if 'sum of peak location' is 0, found peaks in all channels at index=0, which might happen on startup (for some reason?)
+        if sum_of_peak_location == 0:
+            print 'found all zeros for peak index, trying again'
+            time.sleep(1)
+            continue
+        elif sum_of_peak_location < 0:
+            print 'issue found, no peaks, trying reset'
+            print 'sending reset...'
+            sys.reset()
+            time.sleep(30)
+            alignInit(sys)
+            continue
+            
         #otherwise, try to align
         #if location_of_peaks[0] == location_of_peaks[2] == location_of_peaks[4] ==\
         #   location_of_peaks[6] == location_of_peaks[8] == location_of_peaks[10]:
@@ -120,7 +151,7 @@ def align(NUM_TRIES=10, only_master_board=False):
             if verbose:
                 print 'alignment successful: ', location_of_peaks
                 print 'SHIFT BYTES:', SHIFT_BYTES
-            sys.readSysEvent(save=True, filename='test_alignment.dat') #save pulse event for verification
+            sys.readSysEvent(save=True, filename='output/test_alignment.dat') #save pulse event for verification
             close(sys, current_atten_values, verbose=verbose)
             return 1
 

@@ -348,8 +348,9 @@ class Nuphase():
         self.write(self.BUS_MASTER, [51, atten_values[5] & 0xFF, atten_values[4] & 0xFF, atten_values[3] & 0xFF])
         self.write(self.BUS_MASTER, [52, 0x00, atten_values[7] & 0xFF, atten_values[6] & 0xFF])
         self.write(self.BUS_MASTER, [53,0,0,0])
-        self.write(self.BUS_SLAVE, [50, atten_values[10] & 0xFF, atten_values[9] & 0xFF, atten_values[8] & 0xFF])
-        self.write(self.BUS_SLAVE, [51, 0x00, 0x00, atten_values[11] & 0xFF])
+        self.write(self.BUS_SLAVE, [50, 0x00, atten_values[9] & 0xFF, atten_values[8] & 0xFF])
+        #self.write(self.BUS_SLAVE, [50, atten_values[10] & 0xFF, atten_values[9] & 0xFF, atten_values[8] & 0xFF])
+        #self.write(self.BUS_SLAVE, [51, 0x00, 0x00, atten_values[11] & 0xFF])
         self.write(self.BUS_SLAVE, [53,0,0,0])
         if readback:
             print 'set attenuation values to:', atten_values
@@ -447,6 +448,8 @@ class Nuphase():
             readback_trig_reg = self.readRegister(bus, 82)
             return readback_trig_reg
 
+    #def setPhasedTriggerOutput(self, pol=1, width=
+        
     def enablePhasedTriggerToDataManager(self, enable=True, readback=False):
         self.write(self.BUS_MASTER, [39,0,0,1])
         if enable:

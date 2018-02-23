@@ -1,36 +1,51 @@
 import numpy
 import nuphase
 import time
-from bf import *
 import json
 import sys
 
 d=nuphase.Nuphase()
 d.boardInit(True)
+#d.calPulser(True)
+#d.externalTriggerInputConfig(enable=True)
 
-d.enablePhasedTrigger(True)
+d.enablePhasedTrigger(True, verification_mode=True)
 
+thresh=20000
 
-if len(sys.argv) == 2:
-    thresh = int(sys.argv[1])
-    for i in range(15):
-        d.setBeamThresholds(thresh, i)
+#if len(sys.argv) == 2:
+    #thresh = int(sys.argv[1])
 
-    time.sleep(15)
+for i in range(15):
+    d.setBeamThresholds(thresh, i)
+time.sleep(15)
 
 print d.readAllThresholds()
 print d.readScalers()
 
-print d.getDataManagerStatus()
-d.enablePhasedTriggerToDataManager(True)
-time.sleep(5)
-print d.getDataManagerStatus()
-d.enablePhasedTriggerToDataManager(False)
+#print d.getDataManagerStatus()
+#d.enablePhasedTriggerToDataManager(True)
+#time.sleep(5)
+#print d.getDataManagerStatus()
+#d.enablePhasedTriggerToDataManager(False)
 
+
+d.enablePhasedTriggerToDataManager(False)
+d.eventInit()
+time.sleep(2)
+d.enablePhasedTriggerToDataManager(True)
+
+time.sleep(10)
+
+
+time.sleep(1)
 for i in range(4):
+    #d.softwareTrigger() 
     d.setReadoutBuffer(i)
     print i, d.getMetaData()
-    d.readSysEvent(save=True, filename='test'+str(i)+'.dat')
+    d.readSysEvent(save=True, address_stop=128, filename='test'+str(i)+'.dat')
 
+
+d.enablePhasedTriggerToDataManager(False)
 
 

@@ -12,18 +12,20 @@ def init(verbose=verbose, reset_shift_bytes=True):
     sys = nuphase.Nuphase()
     sys.boardInit(verbose=verbose)
     current_atten_values = sys.getCurrentAttenValues(verbose=True)
-    sys.setAttenValues(numpy.zeros(12, dtype=int), readback=verbose)
+    sys.setAttenValues(numpy.zeros(10, dtype=int), readback=verbose)
     sys.calPulser(True, readback=verbose) #turn on cal pulse feature
 
-    SHIFT_BYTES = numpy.zeros(12, dtype=int)
+    SHIFT_BYTES = numpy.zeros(10, dtype=int)
     if reset_shift_bytes:
         #set to 0 and read in current values for delay:
+        ##master board
         for i in range(4):
             sys.write(sys.BUS_MASTER, [56+i,0,0,0])
             readback = sys.readRegister(sys.BUS_MASTER, 56+i)
             SHIFT_BYTES[2*i] = readback[3]
             SHIFT_BYTES[2*i+1] = readback[2]
-        for i in range(2):
+        ##slave board
+        for i in range(1):
             sys.write(sys.BUS_SLAVE, [56+i,0,0,0])
             readback = sys.readRegister(sys.BUS_SLAVE, 56+i)
             SHIFT_BYTES[2*i+8] = readback[3]
@@ -31,11 +33,13 @@ def init(verbose=verbose, reset_shift_bytes=True):
     
     return sys, SHIFT_BYTES, current_atten_values
 
-def getPeaks(data, mode=1, channels=[0,11]):
+def getPeaks(data, mode=1, channels=[0,9]):
     location_of_peaks=[]
 
-    pulse_threshold_master = 84
-    pulse_threshold_slave  = 95
+    #SHOULD MAKE THIS MORE CONFIGURABLE:
+    pulse_threshold_master = 83
+    pulse_threshold_slave  = 93
+    ###########################################
     pulse_thresholds = [pulse_threshold_master] * 8
     pulse_thresholds.extend([pulse_threshold_slave]*4)
 
@@ -138,6 +142,7 @@ def align(NUM_TRIES=10, only_master_board=False):
             continue
         elif sum_of_peak_location < 0:
             print 'issue found, no peaks, trying reset'
+            print location_of_peaks
             print 'sending reset...'
             sys.reset()
             time.sleep(30)
@@ -167,7 +172,7 @@ def align(NUM_TRIES=10, only_master_board=False):
                 sys.write(sys.BUS_MASTER, [56+j,0,SHIFT_BYTES[2*j+1], SHIFT_BYTES[2*j]])
 
         if not only_master_board:
-            for j in range(2):
+            for j in range(1):
                 shift_value = latest_peak+DELAY_SLAVE_BY_CLKCYCLE*16-location_of_peaks[2*j+8]+1
                 if shift_value != 0:
                     #should be identical for both channels within an ADC
@@ -184,7 +189,7 @@ def close(sys, atten_values, verbose):
     sys.setAttenValues(atten_values, readback=verbose)
 
 
-def checkAlignment(channels=[0,11], NUM_TRIES=50, verbose=False):
+def checkAlignment(channels=[0,9], NUM_TRIES=50, verbose=False):
     num_tests=0
     num_success=0
     num_almost_success=0

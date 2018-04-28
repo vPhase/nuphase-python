@@ -61,7 +61,7 @@ while(now < stop):
                 print '....'
 
 d.enablePhasedTriggerToDataManager(False)
-with open('test_oct1/metadata_'+file_suffix+'.json', 'w') as f:
+with open('test_oct2/metadata_'+file_suffix+'.json', 'w') as f:
     json.dump(all_metadata,f)
-with open('test_oct1/scalers_'+file_suffix+'.json','w') as f:
+with open('test_oct2/scalers_'+file_suffix+'.json','w') as f:
     json.dump(all_scalers,f)

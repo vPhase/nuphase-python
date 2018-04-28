@@ -155,9 +155,13 @@ if __name__=='__main__':
     print '-------------'
     print 'reprogramming firmware...'
     print '-------------'
-    time.sleep(20)
+    time.sleep(30)
     enableRemoteFirmwareBlock(dev, bus, False)  #need to disable/re-enable remote blocks to get
     enableRemoteFirmwareBlock(dev, bus, True)   #updated trig configuration status
     retval=readTrigCondition(dev, bus)
     enableRemoteFirmwareBlock(dev, bus, False)
+    time.sleep(5)
+    dev.identify()
+    time.sleep(1)
+
     sys.exit(retval)  #return 0 if successful (verify by reading back firmware version/date)

@@ -18,7 +18,8 @@ import time
 import sys
 import json
 
-TARGET_NOISE_RMS_COUNTS_PHASED_BOARD = 4.2
+DEFINE_NUM_CHAN = 10
+TARGET_NOISE_RMS_COUNTS_PHASED_BOARD = 3.9 #3.1 # 4.2
 TARGET_NOISE_RMS_COUNTS_RX_BOARD = 7.1
 atten_file = '/home/nuphase/nuphase-python/output/atten_values'
 
@@ -69,7 +70,7 @@ if __name__=='__main__':
     
     dev=nuphase.Nuphase()
     dev.boardInit()
-    set_atten_values = numpy.zeros(12, dtype=int) 
+    set_atten_values = numpy.zeros(DEFINE_NUM_CHAN, dtype=int) 
     set_atten_values = reverseBitsInByte(set_atten_values)
     dev.setAttenValues(set_atten_values)
 
@@ -88,7 +89,7 @@ if __name__=='__main__':
         rms_scan_dict[iter_step] = (reversed_current_atten_values, rms)
 
         check_good = 0
-        for i in range(12):
+        for i in range(DEFINE_NUM_CHAN):
             if (rms[i] < TARGET_NOISE_RMS_COUNTS[i]) or (reversed_current_atten_values[i] == 127):
                 continue
             else:
@@ -103,7 +104,7 @@ if __name__=='__main__':
         print '------'
         if check_good == 0:
             f = open(atten_file, 'w')
-            for j in range(12):
+            for j in range(DEFINE_NUM_CHAN):
                 f.write(str(j)+'\t'+str(current_atten_values[j])+'\t'+\
                         str(reversed_current_atten_values[j])+'\t'+str(rms[j])+\
                         '\t'+str(TARGET_NOISE_RMS_COUNTS[j])+'\n')

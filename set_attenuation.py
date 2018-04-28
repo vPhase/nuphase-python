@@ -3,6 +3,7 @@
 #this file can be run as:
 # >> ./set_attenuation.py           to set noise level based on hard-coded values
 # >> ./set_attenuation.py 4.0  6.0  to set noise level to 4.0 counts on the master board and 6.0 counts on the slave board
+# >> ./set_attenuation.py load      to load saved values from atten_file
 
 # reminder that the RMS counts can be higher on the slave board since it is not being used for phasing and can acquire
 # with higher vertical resolution
@@ -19,7 +20,7 @@ import json
 
 TARGET_NOISE_RMS_COUNTS_PHASED_BOARD = 4.2
 TARGET_NOISE_RMS_COUNTS_RX_BOARD = 7.1
-atten_file = 'output/atten_values'
+atten_file = '/home/nuphase/nuphase-python/output/atten_values'
 
 def getRMS(data):
     rms = []
@@ -36,10 +37,33 @@ def reverseBitsInByte(data):
     return reversed_bytes
 
 if __name__=='__main__':
-    if len(sys.argv) == 3:
+
+    dev=nuphase.Nuphase()
+    dev.boardInit()
+
+    #-------------------------------------------
+    #don't do scan, load previous values
+    if sys.argv[1] == 'load':
+
+        try:
+            load_attenuation = numpy.loadtxt(atten_file)
+        except IOError:
+            print atten_file, 'does not exist, set_attenuation.py needs to be run in non-load mode first'
+            sys.exit(1)
+        
+        load_attenuation_reversed_bits = numpy.array(load_attenuation[:,1], dtype=int)
+        dev.setAttenValues(load_attenuation_reversed_bits)
+
+        print 'ATTEN VALUES LOADED. reading back attenuation bytes:', dev.getCurrentAttenValues()
+        sys.exit(0)
+    #--------------------------------------------
+
+    # otherwise, do scan:
+    elif len(sys.argv) == 3:
         TARGET_NOISE_RMS_COUNTS_PHASED_BOARD = float(sys.argv[1])
         TARGET_NOISE_RMS_COUNTS_RX_BOARD = float(sys.argv[2])
 
+        
     TARGET_NOISE_RMS_COUNTS = [TARGET_NOISE_RMS_COUNTS_PHASED_BOARD] * 8
     TARGET_NOISE_RMS_COUNTS.extend([TARGET_NOISE_RMS_COUNTS_RX_BOARD]*4)
     
@@ -88,7 +112,7 @@ if __name__=='__main__':
         time.sleep(0.1) #a bit of wait time
         iter_step = iter_step + 1
 
-    with open('output/rms_scan.json', 'w') as f:
+    with open('/home/nuphase/nuphase-python/output/rms_scan.json', 'w') as f:
         json.dump(rms_scan_dict,f)
     print done
     

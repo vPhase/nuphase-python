@@ -276,7 +276,7 @@ class Nuphase():
 
     def readSysEvent(self, address_start=1, address_stop=64, save=True, filename='test.dat'):
         data_master = self.readBoardEvent(1, address_start=address_start, address_stop=address_stop)
-        data_slave = self.readBoardEvent(0, channel_stop=3, address_start=address_start, address_stop=address_stop)
+        data_slave = self.readBoardEvent(0, address_start=address_start, address_stop=address_stop)
         with open(filename, 'w') as f:
             for i in range(len(data_master[0])):
                 for j in range(len(data_master)):

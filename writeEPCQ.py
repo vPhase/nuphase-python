@@ -10,10 +10,10 @@ import reconfigureFPGA as reconfig
 import tools.bf as bf
 
 directory = '/home/nuphase/firmware/'
-filename = directory+'masterFirmware-2018-2-22.rpd'
+filename = directory+'firmware-slave-1-16-2019.rpd'
 
 FILEMAP_START_ADDR = 0x00000000
-FILEMAP_END_ADDR   = 0x00A331DA #this value needs to be updated for each new firmware version
+FILEMAP_END_ADDR   = 0x009076D1 #this value needs to be updated for each new firmware version
 TARGET_START_ADDR  = 0x01000000 #address where application firmware image is stored - STATIC, DO NOT CHANGE!!
 
 def setMode(dev, bus, mode):
@@ -230,8 +230,8 @@ if __name__=='__main__':
 
     
     dev=nuphase.Nuphase()
-    bus = dev.BUS_MASTER
-    #bus = dev.BUS_SLAVE
+    #bus = dev.BUS_MASTER
+    bus = dev.BUS_SLAVE
     print '\n RUNNING REMOTE FIRMWARE IMAGE UPDATE '
     reconfig.enableRemoteFirmwareBlock(dev, bus, False)
     reconfig.enableRemoteFirmwareBlock(dev, bus, True)

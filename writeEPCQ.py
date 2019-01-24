@@ -10,10 +10,10 @@ import reconfigureFPGA as reconfig
 import tools.bf as bf
 
 directory = '/home/nuphase/firmware/'
-filename = directory+'masterFirmware-2018-2-22.rpd'
+filename = directory+'firmware-slave-1-24-2019.rpd'
 
 FILEMAP_START_ADDR = 0x00000000
-FILEMAP_END_ADDR   = 0x00A331DA #this value needs to be updated for each new firmware version
+FILEMAP_END_ADDR   = 0x008F1468 #this value needs to be updated for each new firmware version
 TARGET_START_ADDR  = 0x01000000 #address where application firmware image is stored - STATIC, DO NOT CHANGE!!
 
 def setMode(dev, bus, mode):

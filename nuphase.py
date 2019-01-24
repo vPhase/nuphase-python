@@ -52,7 +52,8 @@ class Nuphase():
         if dev < 0 or dev > 1:
             return None
         self.spi[dev].writebytes(data)        
-
+        return 0
+        
     def read(self, dev):
         if dev < 0 or dev > 1:
             return None
@@ -220,6 +221,8 @@ class Nuphase():
             print 'buffer full flags     master:', self.buffer_flags[0], 'slave:', self.buffer_flags[1]
             print 'last trig type        master:', self.last_trig_type[0], 'slave:', self.last_trig_type[1]
 
+        return status_master, status_slave
+    
     def getMetaData(self, verbose=True):
         metadata={}
         metadata['master'] = {}  #master
@@ -489,8 +492,40 @@ class Nuphase():
             print 'reading back threshold for beam', beam, ' Value is', readback_thresh
             return readback_thresh
         
+    #suface trigger stuff / new in 2019
+    def setSurfaceTriggerConfig(self, threshold=20, mask=3, window=7, min_coinc=2, bus=0):
+        self.write(bus, [46, mask & 0xFF, window & 0xFF, threshold & 0xFF])
+        reg47 = self.readRegister(bus, 47)
+        self.write(bus, [47, reg47[1], 0, min_coinc])
 
+    def getSurfaceEventFlag(self, bus=0):
+        '''
+        get the buffer full flag in the data manager status register
+        '''
+        stat_m, stat_s = self.getDataManagerStatus(verbose=False)
+        if bus == 0:
+            self.surface_trig_flag = (stat_s[3] & 0x10) >> 4
+        else:
+            self.surface_trig_flag = (stat_m[3] & 0x10) >> 4
 
+        return self.surface_trig_flag
+
+    def clearSurfaceEventBuffer(self, bus=0):
+        '''
+        clear the surface data manager event buffer
+        '''
+        self.write(bus, [77, 1, 0, 0]) #high byte in register 77
+
+    def setSurfaceReadout(self, enable=False, bus=0):
+        '''
+        toggle the bit that selects surface or deep data readout
+        '''
+        reg47 = self.readRegister(bus, 47)
+        if enable:
+            self.write(bus, [47, reg47[1], 1, reg47[3]])
+        else:
+            self.write(bus, [47, reg47[1], 0, reg47[3]])
+            
         
 if __name__=="__main__":
     d=Nuphase()

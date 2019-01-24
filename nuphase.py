@@ -279,7 +279,7 @@ class Nuphase():
 
     def readSysEvent(self, address_start=1, address_stop=64, save=True, filename='test.dat'):
         data_master = self.readBoardEvent(1, address_start=address_start, address_stop=address_stop)
-        data_slave = self.readBoardEvent(0, channel_stop=3, address_start=address_start, address_stop=address_stop)
+        data_slave = self.readBoardEvent(0, address_start=address_start, address_stop=address_stop)
         with open(filename, 'w') as f:
             for i in range(len(data_master[0])):
                 for j in range(len(data_master)):
@@ -373,7 +373,7 @@ class Nuphase():
         self.write(bus, [40,0,0,1])
 
     def setScalerOut(self, scaler_adr=0, bus=1):
-        if scaler_adr < 0 or scaler_adr > 24:
+        if scaler_adr < 0 or scaler_adr > 25:
             return None
         self.write(bus, [41,0,0,scaler_adr])
 

@@ -8,6 +8,10 @@ d=nuphase.Nuphase()
 d.boardInit(True)
 #d.calPulser(True)
 #d.externalTriggerInputConfig(enable=True)
+<<<<<<< HEAD
+=======
+
+>>>>>>> daf48efb38c7f895301a345f716ee548590490f4
 '''
 d.enablePhasedTrigger(True, verification_mode=True)
 

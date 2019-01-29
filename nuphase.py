@@ -373,7 +373,7 @@ class Nuphase():
         self.write(bus, [40,0,0,1])
 
     def setScalerOut(self, scaler_adr=0, bus=1):
-        if scaler_adr < 0 or scaler_adr > 25:
+        if scaler_adr < 0 or scaler_adr > 26:
             return None
         self.write(bus, [41,0,0,scaler_adr])
 
@@ -493,10 +493,10 @@ class Nuphase():
             return readback_thresh
         
     #suface trigger stuff / new in 2019
-    def setSurfaceTriggerConfig(self, threshold=20, mask=3, window=7, min_coinc=2, bus=0):
+    def setSurfaceTriggerConfig(self, threshold=20, mask=3, window=7, min_coinc=2, hpol=False, bus=0):
         self.write(bus, [46, mask & 0xFF, window & 0xFF, threshold & 0xFF])
         reg47 = self.readRegister(bus, 47)
-        self.write(bus, [47, reg47[1], 0, min_coinc])
+        self.write(bus, [47, reg47[1], 0, (hpol << 4) | (min_coinc & 0x7)])
 
     def getSurfaceEventFlag(self, bus=0):
         '''
@@ -525,7 +525,13 @@ class Nuphase():
             self.write(bus, [47, reg47[1], 1, reg47[3]])
         else:
             self.write(bus, [47, reg47[1], 0, reg47[3]])
-            
+
+    def setSurfaceHpolThreshold(self, threshold, bus=0):
+        '''
+        set the surface hpol threshold, only needed if hpol=True in setSurfaceTriggerConfig()
+        '''
+        self.write(bus, [102, (threshold & 0xFF0000) >> 16, (threshold & 0x00FF00) >> 8, threshold & 0x0000FF])
+    
         
 if __name__=="__main__":
     d=Nuphase()

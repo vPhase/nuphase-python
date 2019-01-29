@@ -25,7 +25,7 @@ def init(verbose=verbose, reset_shift_bytes=True):
             SHIFT_BYTES[2*i] = readback[3]
             SHIFT_BYTES[2*i+1] = readback[2]
         ##slave board
-        for i in range(1):
+        for i in range(4):
             sys.write(sys.BUS_SLAVE, [56+i,0,0,0])
             readback = sys.readRegister(sys.BUS_SLAVE, 56+i)
             SHIFT_BYTES[2*i+8] = readback[3]
@@ -172,7 +172,7 @@ def align(NUM_TRIES=10, only_master_board=False):
                 sys.write(sys.BUS_MASTER, [56+j,0,SHIFT_BYTES[2*j+1], SHIFT_BYTES[2*j]])
 
         if not only_master_board:
-            for j in range(1):
+            for j in range(4):
                 shift_value = latest_peak+DELAY_SLAVE_BY_CLKCYCLE*16-location_of_peaks[2*j+8]+1
                 if shift_value != 0:
                     #should be identical for both channels within an ADC

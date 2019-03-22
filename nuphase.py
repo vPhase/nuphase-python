@@ -7,6 +7,7 @@ import math
 import time
 import os
 from tools.bf import *
+import datetime
 
 class Nuphase():
     spi_bytes = 4  #transaction must include 4 bytes
@@ -95,8 +96,11 @@ class Nuphase():
 
         return board_dna_slave, board_dna_master
 
-    def identify(self):
+    def identify(self, save=False):
         dna = self.dna()
+
+        fw_info=[]
+        
         for i in range(2):
             print "SPI bus", i
             firmware_version = self.readRegister(i, self.map['FIRMWARE_VER'])
@@ -107,7 +111,16 @@ class Nuphase():
             print 'firmware date:', firmware_date
             print 'board DNA:', hex(dna[i])
             print '-----------------------------------'
+            fw_info.extend([i, hex(dna[i]), firmware_version, firmware_date])
 
+        if save:
+            with open('output/fw_info.txt', 'w') as f:
+                f.write(str(datetime.datetime.now())+'\n')
+                for i in range(len(fw_info)):
+                    f.write(str(fw_info[i])+'\n')
+            f.close()
+                    
+            
     def reset(self, sync=True):
         if sync:
             self.write(self.BUS_MASTER,[39,0,0,1])
@@ -274,7 +287,12 @@ class Nuphase():
         metadata['master']['beam_power']=[]
         for i in range(15):
             metadata['master']['beam_power'].append(trig_beam_power[i][1] << 16 | trig_beam_power[i][2] << 8 | trig_beam_power[i][3])
-                                   
+
+
+        if verbose:
+            print 'event count  :', metadata['slave']['evt_count'], metadata['master']['evt_count']
+            print 'trig count   :', metadata['slave']['trig_count'], metadata['master']['trig_count']
+            print 'buffer number:', metadata['slave']['buffer_no'], metadata['master']['buffer_no']
         return metadata
 
     def readSysEvent(self, address_start=1, address_stop=64, save=True, filename='test.dat'):
@@ -431,9 +449,9 @@ class Nuphase():
         #       [6] = latched timestamp value on ext trig input (i.e. pps)
         return scaler_dict
 
-    def preTriggerWindow(self, value=6):
-        self.write(self.BUS_SLAVE, [76, 0, 0, value & 0xFF])
-        self.write(self.BUS_MASTER, [76, 0, 0, value & 0xFF])
+    def preTriggerWindow(self, value=6, surface_value=6):
+        self.write(self.BUS_SLAVE, [76, 0, surface_value & 0xFF, value & 0xFF])
+        self.write(self.BUS_MASTER, [76, 0, surface_value & 0xFF, value & 0xFF])
 
     def enablePhasedTrigger(self, enable=True, readback=True, verification_mode=True, bus=1):
         readback_trig_reg = self.readRegister(bus, 82)
@@ -493,10 +511,10 @@ class Nuphase():
             return readback_thresh
         
     #suface trigger stuff / new in 2019
-    def setSurfaceTriggerConfig(self, threshold=20, mask=3, window=7, min_coinc=2, hpol=False, bus=0):
+    def setSurfaceTriggerConfig(self, threshold=20, mask=3, window=7, min_coinc=2, hpol=False, fir=True, bus=0):
         self.write(bus, [46, mask & 0xFF, window & 0xFF, threshold & 0xFF])
         reg47 = self.readRegister(bus, 47)
-        self.write(bus, [47, reg47[1], 0, (hpol << 4) | (min_coinc & 0x7)])
+        self.write(bus, [47, reg47[1], 0, (hpol << 4) | (fir << 3) | (min_coinc & 0x7)])
 
     def getSurfaceEventFlag(self, bus=0):
         '''
@@ -520,11 +538,10 @@ class Nuphase():
         '''
         toggle the bit that selects surface or deep data readout
         '''
-        reg47 = self.readRegister(bus, 47)
         if enable:
-            self.write(bus, [47, reg47[1], 1, reg47[3]])
+            self.write(bus, [74, 0, 0, 1])
         else:
-            self.write(bus, [47, reg47[1], 0, reg47[3]])
+            self.write(bus, [74, 0, 0, 0])
 
     def setSurfaceHpolThreshold(self, threshold, bus=0):
         '''
@@ -536,4 +553,4 @@ class Nuphase():
 if __name__=="__main__":
     d=Nuphase()
     d.boardInit()
-    d.identify()
+    d.identify(True)

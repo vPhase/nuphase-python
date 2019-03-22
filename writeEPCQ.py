@@ -11,10 +11,10 @@ import tools.bf as bf
 
 directory = '/home/nuphase/firmware/'
 
-filename = directory+'firmware-slave-1-29-2019.rpd'
+filename = directory+'slave-firmware-3-19.rpd'
 
 FILEMAP_START_ADDR = 0x00000000
-FILEMAP_END_ADDR   = 0x0093C24C #this value needs to be updated for each new firmware version
+FILEMAP_END_ADDR   = 0x00992862 #this value needs to be updated for each new firmware version
 TARGET_START_ADDR  = 0x01000000 #address where application firmware image is stored - STATIC, DO NOT CHANGE!!
 
 def setMode(dev, bus, mode):

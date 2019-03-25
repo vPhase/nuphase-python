@@ -11,7 +11,7 @@ d=nuphase.Nuphase()
 d.boardInit()
 bus=1 #plugged in test board into spi bus 1, SP system has slave board in bus=0
 
-d.setSurfaceTriggerConfig(threshold=11, mask=63, min_coinc=3, window=3, hpol=False, fir=True, bus=bus)
+d.setSurfaceTriggerConfig(threshold=10, mask=63, min_coinc=3, window=3, hpol=False, fir=True, bus=bus)
 d.setSurfaceHpolThreshold(10000, bus=bus)
 
 print d.readRegister(bus,46)

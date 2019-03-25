@@ -543,6 +543,15 @@ class Nuphase():
         else:
             self.write(bus, [74, 0, 0, 0])
 
+    def setSurfaceReadoutMode(self, filtered_data=False, bus=0):
+        '''
+        send FIR-highpass filtered data (if enabled) to saved surface data buffer
+        '''
+        if filtered_data:
+            self.write(bus, [73, 0, 0, 1])
+        else:
+            self.write(bus, [73, 0, 0, 0])
+            
     def setSurfaceHpolThreshold(self, threshold, bus=0):
         '''
         set the surface hpol threshold, only needed if hpol=True in setSurfaceTriggerConfig()

@@ -15,7 +15,7 @@ def init(verbose=verbose, reset_shift_bytes=True):
     sys.setAttenValues(numpy.zeros(10, dtype=int), readback=verbose)
     sys.calPulser(True, readback=verbose) #turn on cal pulse feature
 
-    SHIFT_BYTES = numpy.zeros(10, dtype=int)
+    SHIFT_BYTES = numpy.zeros(16, dtype=int)
     if reset_shift_bytes:
         #set to 0 and read in current values for delay:
         ##master board
@@ -33,7 +33,7 @@ def init(verbose=verbose, reset_shift_bytes=True):
     
     return sys, SHIFT_BYTES, current_atten_values
 
-def getPeaks(data, mode=1, channels=[0,9]):
+def getPeaks(data, mode=1, channels=[0,15]):
     location_of_peaks=[]
 
     #SHOULD MAKE THIS MORE CONFIGURABLE:
@@ -41,7 +41,7 @@ def getPeaks(data, mode=1, channels=[0,9]):
     pulse_threshold_slave  = 93
     ###########################################
     pulse_thresholds = [pulse_threshold_master] * 8
-    pulse_thresholds.extend([pulse_threshold_slave]*4)
+    pulse_thresholds.extend([pulse_threshold_slave]*8)
 
     for chan in range(len(data)):
         if chan < channels[0] or chan > channels[1]:
